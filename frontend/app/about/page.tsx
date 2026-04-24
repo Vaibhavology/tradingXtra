@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Github, Linkedin, Mail, Globe, ExternalLink, Terminal } from "lucide-react";
+import { Code2, Briefcase, Mail, Globe, ExternalLink, Terminal } from "lucide-react";
 
 export default function AboutPage() {
   return (
@@ -60,7 +60,7 @@ export default function AboutPage() {
             <Link href="https://github.com/vaibhavology" target="_blank" className="flex items-center justify-between p-4 bg-[var(--bg-primary)]/50 hover:bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-xl transition-all duration-300 group">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center">
-                  <Github className="w-5 h-5 text-white" />
+                  <Code2 className="w-5 h-5 text-white" />
                 </div>
                 <div>
                   <div className="text-sm font-bold text-white group-hover:text-[var(--accent-blue)] transition-colors">GitHub</div>
@@ -73,7 +73,7 @@ export default function AboutPage() {
             <Link href="https://linkedin.com/in/vaibhavology/" target="_blank" className="flex items-center justify-between p-4 bg-[var(--bg-primary)]/50 hover:bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-xl transition-all duration-300 group">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-lg bg-blue-900/30 flex items-center justify-center">
-                  <Linkedin className="w-5 h-5 text-blue-400" />
+                  <Briefcase className="w-5 h-5 text-blue-400" />
                 </div>
                 <div>
                   <div className="text-sm font-bold text-white group-hover:text-blue-400 transition-colors">LinkedIn</div>
