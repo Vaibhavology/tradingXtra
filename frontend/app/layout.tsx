@@ -3,6 +3,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://tradingxtra.vercel.app"),
   title: "TradingXtra – AI Trading Terminal",
   description: "Quant-based trading intelligence platform with EV scoring, market brief, AI-powered stock insights, and professional trading dashboard.",
   keywords: [
@@ -22,11 +23,11 @@ export const metadata: Metadata = {
   openGraph: {
     title: "TradingXtra – AI Trading Terminal",
     description: "Quant-based trading intelligence platform with EV scoring, market brief, AI-powered stock insights, and professional trading dashboard.",
-    url: "https://trading-xtra.vercel.app",
+    url: "https://tradingxtra.vercel.app",
     siteName: "TradingXtra",
     images: [
       {
-        url: "https://trading-xtra.vercel.app/og-image.png",
+        url: "/og-image.png",
         width: 1200,
         height: 630,
         alt: "TradingXtra Command Center Dashboard",
@@ -39,7 +40,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "TradingXtra – AI Trading Terminal",
     description: "Quant-based trading intelligence platform with EV scoring, market brief, AI-powered stock insights, and professional trading dashboard.",
-    images: ["https://trading-xtra.vercel.app/og-image.png"],
+    images: ["/og-image.png"],
     creator: "@vaibhavology",
   },
   robots: {

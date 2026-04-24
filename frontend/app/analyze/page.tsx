@@ -1,25 +1,52 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { analyzeStockDetails, StockDetails } from "@/lib/api";
 import OrderBookCard from "@/components/OrderBookCard";
+import { NSE_STOCKS } from "@/lib/nseStocks";
 
 export default function AnalyzePage() {
+  const [query, setQuery] = useState("");
   const [symbol, setSymbol] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [data, setData] = useState<StockDetails | null>(null);
 
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredStocks = NSE_STOCKS.filter(stock => 
+    stock.name.toLowerCase().includes(query.toLowerCase()) || 
+    stock.symbol.toLowerCase().includes(query.toLowerCase())
+  ).slice(0, 10);
+
+  const handleSelect = (selectedSymbol: string, selectedName: string) => {
+    setSymbol(selectedSymbol);
+    setQuery(selectedName);
+    setShowDropdown(false);
+  };
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!symbol) return;
+    const searchTarget = symbol || query;
+    if (!searchTarget) return;
     
     setLoading(true);
     setError("");
     setData(null);
 
     try {
-      const result = await analyzeStockDetails(symbol.toUpperCase());
+      const result = await analyzeStockDetails(searchTarget.toUpperCase());
       setData(result);
     } catch (err: any) {
       setError(err.message || "Failed to fetch stock details");
@@ -39,18 +66,40 @@ export default function AnalyzePage() {
           <p className="text-[var(--text-muted)] text-sm mt-1">Deep-dive intelligence & real-time order book flow.</p>
         </div>
 
-        <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3 z-10 w-full md:w-1/3">
-          <input
-            type="text"
-            placeholder="Enter symbol (e.g. RELIANCE)"
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value)}
-            className="flex-1 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded px-4 py-2 text-white font-mono uppercase focus:outline-none focus:border-[var(--accent-blue)] transition-colors"
-          />
+        <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3 z-10 w-full md:w-1/2 relative" ref={dropdownRef}>
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              placeholder="Search company (e.g. State Bank) or symbol"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setSymbol("");
+                setShowDropdown(true);
+              }}
+              onFocus={() => setShowDropdown(true)}
+              className="w-full bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded px-4 py-2 text-white focus:outline-none focus:border-[var(--accent-blue)] transition-colors"
+            />
+            
+            {showDropdown && query && filteredStocks.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-md shadow-xl z-50 max-h-60 overflow-y-auto">
+                {filteredStocks.map((s) => (
+                  <div
+                    key={s.symbol}
+                    onClick={() => handleSelect(s.symbol, s.name)}
+                    className="px-4 py-2 hover:bg-[var(--bg-primary)] cursor-pointer border-b border-[var(--border-default)] last:border-b-0 flex justify-between items-center"
+                  >
+                    <span className="text-white text-sm truncate mr-2">{s.name}</span>
+                    <span className="text-[var(--text-muted)] text-xs font-mono bg-[var(--bg-card)] px-1.5 py-0.5 rounded shrink-0">{s.symbol}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <button
             type="submit"
-            disabled={loading || !symbol}
-            className="bg-[var(--accent-blue)] text-black px-6 py-2 rounded font-bold uppercase tracking-wider hover:bg-[var(--accent-blue)]/90 disabled:opacity-50 transition-all"
+            disabled={loading || (!symbol && !query)}
+            className="bg-[var(--accent-blue)] text-black px-6 py-2 rounded font-bold uppercase tracking-wider hover:bg-[var(--accent-blue)]/90 disabled:opacity-50 transition-all shrink-0"
           >
             {loading ? "Scanning..." : "Analyze"}
           </button>

@@ -1,6 +1,18 @@
 "use client";
 import { InvestSmart, fetchAPI } from "@/lib/api";
 import { useState, useEffect } from "react";
+import { 
+  RefreshCw, 
+  Tv, 
+  TrendingUp, 
+  TrendingDown, 
+  Minus, 
+  PlayCircle, 
+  ClipboardList, 
+  MessageSquare, 
+  Lightbulb, 
+  AlertTriangle 
+} from "lucide-react";
 
 interface Props {
   data: InvestSmart | null;
@@ -37,16 +49,14 @@ export default function InvestSmartCard({ data, systemDecisions }: Props) {
       <div className="p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-widest flex items-center gap-2">
-            <span>📺</span> Invest Smart
+            <Tv className="w-4 h-4 text-[var(--accent-blue)]" /> Invest Smart
             <button 
               onClick={handleRefresh}
               disabled={refreshing}
               className={`ml-2 p-1 rounded hover:bg-[var(--bg-primary)] transition-all ${refreshing ? "opacity-50 cursor-not-allowed" : "text-[var(--accent-blue)]"}`}
               title="Check for new video & analyze"
             >
-              <svg className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-              </svg>
+              <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
             </button>
           </h3>
         </div>
@@ -68,9 +78,9 @@ export default function InvestSmartCard({ data, systemDecisions }: Props) {
 
   const actionIcon = (action: string) => {
     switch (action) {
-      case "BUY": return "🟢";
-      case "AVOID": return "🔴";
-      default: return "🟡";
+      case "BUY": return <TrendingUp className="w-3 h-3" />;
+      case "AVOID": return <TrendingDown className="w-3 h-3" />;
+      default: return <Minus className="w-3 h-3" />;
     }
   };
 
@@ -98,16 +108,14 @@ export default function InvestSmartCard({ data, systemDecisions }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-widest flex items-center gap-2">
-          <span>📺</span> Invest Smart
+          <Tv className="w-4 h-4 text-[var(--accent-blue)]" /> Invest Smart
           <button 
             onClick={handleRefresh}
             disabled={refreshing}
             className={`ml-2 p-1 rounded hover:bg-[var(--bg-primary)] transition-all ${refreshing ? "opacity-50 cursor-not-allowed" : "text-[var(--accent-blue)]"}`}
             title="Check for new video & analyze"
           >
-            <svg className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-            </svg>
+            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
           </button>
         </h3>
         <span className="text-[10px] text-[var(--text-muted)] bg-[var(--bg-primary)] px-2 py-0.5 rounded">
@@ -121,11 +129,11 @@ export default function InvestSmartCard({ data, systemDecisions }: Props) {
           href={localData.link}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-xs text-[var(--accent-blue)] hover:underline line-clamp-2 leading-relaxed"
+          className="text-xs text-[var(--accent-blue)] hover:underline line-clamp-2 leading-relaxed flex items-center gap-1.5"
         >
-          🎬 {localData.title}
+          <PlayCircle className="w-3.5 h-3.5 shrink-0" /> {localData.title}
         </a>
-        <span className="text-[10px] text-[var(--text-muted)] block mt-1">
+        <span className="text-[10px] text-[var(--text-muted)] block mt-1 ml-5">
           {formatDate(localData.published)}
         </span>
       </div>
@@ -133,7 +141,9 @@ export default function InvestSmartCard({ data, systemDecisions }: Props) {
       {/* Video Takeaways */}
       {localData.takeaways?.length > 0 && (
         <div className="mb-4">
-          <span className="text-[11px] text-[var(--text-muted)] font-medium block mb-2">📋 Video Takeaways</span>
+          <span className="text-[11px] text-[var(--text-muted)] font-medium flex items-center gap-1.5 mb-2">
+            <ClipboardList className="w-3.5 h-3.5" /> Video Takeaways
+          </span>
           <div className="space-y-1.5">
             {localData.takeaways.map((t, i) => (
               <div key={i} className="text-[11px] text-[var(--text-secondary)] flex items-start gap-2 bg-[var(--bg-primary)] rounded px-2.5 py-1.5">
@@ -148,7 +158,9 @@ export default function InvestSmartCard({ data, systemDecisions }: Props) {
       {/* Market Commentary */}
       {localData.market_commentary && (
         <div className="mb-4 pb-3 border-b border-[var(--border-default)]">
-          <span className="text-[11px] text-[var(--text-muted)] font-medium block mb-1.5">💬 Market Commentary</span>
+          <span className="text-[11px] text-[var(--text-muted)] font-medium flex items-center gap-1.5 mb-1.5">
+            <MessageSquare className="w-3.5 h-3.5" /> Market Commentary
+          </span>
           <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed bg-[var(--bg-primary)] rounded px-3 py-2 italic">
             &ldquo;{localData.market_commentary}&rdquo;
           </p>
@@ -158,7 +170,11 @@ export default function InvestSmartCard({ data, systemDecisions }: Props) {
       {/* Positive Stocks */}
       {buyStocks.length > 0 && (
         <StockSection
-          label="🟢 Positive Outlook"
+          label={
+            <span className="flex items-center gap-1.5 text-[var(--accent-green)]">
+              <TrendingUp className="w-3.5 h-3.5" /> Positive Outlook
+            </span>
+          }
           stocks={buyStocks}
           actionColor={actionColor}
           actionIcon={actionIcon}
@@ -169,7 +185,11 @@ export default function InvestSmartCard({ data, systemDecisions }: Props) {
       {/* Watch / Neutral Stocks */}
       {watchStocks.length > 0 && (
         <StockSection
-          label="🟡 Neutral / Watch"
+          label={
+            <span className="flex items-center gap-1.5 text-[var(--accent-yellow)]">
+              <Minus className="w-3.5 h-3.5" /> Neutral / Watch
+            </span>
+          }
           stocks={watchStocks}
           actionColor={actionColor}
           actionIcon={actionIcon}
@@ -180,7 +200,11 @@ export default function InvestSmartCard({ data, systemDecisions }: Props) {
       {/* Negative / Failed Setups */}
       {avoidStocks.length > 0 && (
         <StockSection
-          label="🔴 Negative / Failed Setups"
+          label={
+            <span className="flex items-center gap-1.5 text-[var(--accent-red)]">
+              <TrendingDown className="w-3.5 h-3.5" /> Negative / Failed Setups
+            </span>
+          }
           stocks={avoidStocks}
           actionColor={actionColor}
           actionIcon={actionIcon}
@@ -198,7 +222,9 @@ export default function InvestSmartCard({ data, systemDecisions }: Props) {
       {/* Insights */}
       {localData.insights?.length > 0 && (
         <div className="pt-3 border-t border-[var(--border-default)]">
-          <span className="text-[11px] text-[var(--text-muted)] font-medium block mb-1.5">💡 Trading Insights</span>
+          <span className="text-[11px] text-[var(--text-muted)] font-medium flex items-center gap-1.5 mb-1.5">
+            <Lightbulb className="w-3.5 h-3.5" /> Trading Insights
+          </span>
           <ul className="space-y-1">
             {localData.insights.map((insight, i) => (
               <li key={i} className="text-[11px] text-[var(--text-secondary)] flex items-start gap-1.5">
@@ -227,15 +253,15 @@ function StockSection({
   actionIcon,
   systemDecisions,
 }: {
-  label: string;
+  label: React.ReactNode;
   stocks: Array<{ symbol: string; action: string; reason: string; confidence: number; in_universe: boolean }>;
   actionColor: (a: string) => string;
-  actionIcon: (a: string) => string;
+  actionIcon: (a: string) => React.ReactNode;
   systemDecisions?: Record<string, string>;
 }) {
   return (
     <div className="mb-3">
-      <span className="text-[11px] text-[var(--text-muted)] font-medium block mb-2">{label}</span>
+      <div className="text-[11px] text-[var(--text-muted)] font-medium block mb-2">{label}</div>
       <div className="space-y-1.5">
         {stocks.map((s, i) => {
           const sysDecision = systemDecisions?.[s.symbol];
@@ -249,7 +275,7 @@ function StockSection({
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-xs text-white font-medium">{s.symbol}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${actionColor(s.action)}`}>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium flex items-center gap-1 ${actionColor(s.action)}`}>
                     {actionIcon(s.action)} {s.action}
                   </span>
                   {!s.in_universe && (
@@ -274,8 +300,8 @@ function StockSection({
                     <span className="text-[9px] text-[var(--text-muted)]">{(s.confidence * 100).toFixed(0)}%</span>
                   </div>
                   {hasConflict && (
-                    <span className="text-[9px] text-[var(--accent-red)] bg-[var(--accent-red)]/10 px-1.5 py-0.5 rounded border border-[var(--accent-red)]/20">
-                      ⚠ CONFLICT
+                    <span className="text-[9px] text-[var(--accent-red)] bg-[var(--accent-red)]/10 px-1.5 py-0.5 rounded border border-[var(--accent-red)]/20 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> CONFLICT
                     </span>
                   )}
                 </div>
@@ -315,8 +341,8 @@ function ConflictSummary({
 
   return (
     <div className="mt-3 pt-3 border-t border-[var(--border-default)]">
-      <span className="text-[10px] text-[var(--accent-red)] font-medium block mb-1.5">
-        ⚠ System vs YouTube Conflicts ({conflicts.length})
+      <span className="text-[10px] text-[var(--accent-red)] font-medium flex items-center gap-1.5 mb-1.5">
+        <AlertTriangle className="w-3.5 h-3.5" /> System vs YouTube Conflicts ({conflicts.length})
       </span>
       {conflicts.map((c, i) => (
         <div key={i} className="text-[10px] text-[var(--text-muted)] flex items-center gap-2 py-0.5">
