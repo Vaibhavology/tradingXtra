@@ -134,7 +134,7 @@ export default function PortfolioPage() {
                 />
                 <path
                   className="text-[var(--accent-blue)] drop-shadow-[0_0_8px_var(--accent-blue)]"
-                  strokeDasharray={`${intel.current_exposure_pct}, 100`}
+                  strokeDasharray={`${data.exposure.total_exposure_pct}, 100`}
                   strokeWidth="4"
                   strokeLinecap="round"
                   stroke="currentColor"
@@ -143,7 +143,7 @@ export default function PortfolioPage() {
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-xl font-mono font-bold text-white">{intel.current_exposure_pct}%</span>
+                <span className="text-xl font-mono font-bold text-white">{data.exposure.total_exposure_pct}%</span>
                 <span className="text-[9px] uppercase tracking-wider text-[var(--text-muted)]">Invested</span>
               </div>
             </div>

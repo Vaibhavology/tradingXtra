@@ -37,7 +37,7 @@ export default function EquityChart({ data, initial }: { data: DataPoint[]; init
           tick={{ fill: "#6b7280", fontSize: 10 }}
           tickLine={false}
           axisLine={false}
-          tickFormatter={(v: number) => `₹${(v / 1000).toFixed(0)}k`}
+          tickFormatter={(v: any) => `₹${(v / 1000).toFixed(0)}k`}
         />
         <Tooltip
           contentStyle={{
@@ -47,7 +47,7 @@ export default function EquityChart({ data, initial }: { data: DataPoint[]; init
             fontSize: "12px",
             color: "#e5e7eb",
           }}
-          formatter={(v: number) => [`₹${v.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`, "Capital"]}
+          formatter={(v: any) => [`₹${Number(v).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`, "Capital"]}
         />
         <ReferenceLine y={initial} stroke="#4b5563" strokeDasharray="3 3" />
         <Area
