@@ -210,6 +210,7 @@ export interface TradeRecord {
 export const getScan = () => fetchAPI<ScanResult>("/scan");
 export const getDecision = (symbol: string) => fetchAPI<TradeDecision>(`/decision?symbol=${symbol}`);
 export const getMarketBrief = () => fetchAPI<MarketBrief>("/market-brief");
+export const refreshInvestSmart = () => fetchAPI<{ status: string; data: InvestSmart }>("/invest-smart/refresh", { method: "POST" });
 export const getPortfolio = () => fetchAPI<PortfolioState>("/portfolio");
 export const getPortfolioPositions = () => fetchAPI<{ positions: Position[]; count: number; total_unrealized_pnl: number }>("/portfolio/positions");
 export const getExposure = () => fetchAPI<ExposureData>("/portfolio/exposure");

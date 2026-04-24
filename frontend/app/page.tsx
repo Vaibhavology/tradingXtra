@@ -2,10 +2,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  getScan, getMarketBrief, getPortfolio, getPerformance,
+  getScan, getMarketBrief, getPortfolio, getPerformance, refreshInvestSmart,
   ScanResult, MarketBrief as MarketBriefType, PortfolioState, PerformanceData, TradeDecision,
 } from "@/lib/api";
-import { Activity, AlertTriangle, Monitor, Globe, MapPin } from "lucide-react";
+import { Activity, AlertTriangle, Monitor, Globe, MapPin, RefreshCw } from "lucide-react";
 import PickCard from "@/components/PickCard";
 import PortfolioCard from "@/components/PortfolioCard";
 import PerformanceCard from "@/components/PerformanceCard";
@@ -19,6 +19,22 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
+  const [refreshingInvestSmart, setRefreshingInvestSmart] = useState(false);
+
+  const handleRefreshInvestSmart = async () => {
+    if (refreshingInvestSmart) return;
+    setRefreshingInvestSmart(true);
+    try {
+      const res = await refreshInvestSmart();
+      if (res.status === "success" && res.data) {
+        setBrief(prev => prev ? { ...prev, invest_smart: res.data } : prev);
+      }
+    } catch (e) {
+      console.error("Failed to refresh invest smart:", e);
+    } finally {
+      setRefreshingInvestSmart(false);
+    }
+  };
 
   useEffect(() => {
     async function load() {
@@ -214,7 +230,7 @@ export default function Dashboard() {
       </div>
 
       {/* 4. INVEST SMART (HUMAN INTELLIGENCE) */}
-      {brief?.invest_smart && brief.invest_smart.stocks && brief.invest_smart.stocks.length > 0 && (
+      {brief?.invest_smart && (
          <div className="mt-16 pt-8 border-t border-[var(--border-default)]/30">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
                <div>
@@ -224,6 +240,16 @@ export default function Dashboard() {
                   </div>
                   <p className="text-xs font-mono text-[var(--accent-blue)] uppercase tracking-widest mt-2 ml-11 font-bold">Expert Market Thinking Layer</p>
                </div>
+               
+               <button 
+                 onClick={handleRefreshInvestSmart}
+                 disabled={refreshingInvestSmart}
+                 className={`flex items-center gap-2 px-4 py-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-card)] hover:bg-[var(--bg-primary)] hover:border-[var(--accent-blue)]/50 transition-all text-sm font-medium text-[var(--text-secondary)] ${refreshingInvestSmart ? "opacity-50 cursor-not-allowed" : ""}`}
+                 title="Fetch and analyze latest YouTube video"
+               >
+                 <RefreshCw className={`w-4 h-4 ${refreshingInvestSmart ? "animate-spin text-[var(--accent-blue)]" : ""}`} />
+                 {refreshingInvestSmart ? "Analyzing..." : "Refresh Video"}
+               </button>
             </div>
             
             <div className="group relative bg-[var(--bg-card)] border border-[var(--border-default)] hover:border-[var(--accent-blue)]/40 transition-colors duration-500 rounded-3xl overflow-hidden shadow-2xl p-8 lg:p-10">
@@ -254,12 +280,16 @@ export default function Dashboard() {
                               <span className="w-4 h-px bg-[var(--accent-blue)]"></span> Strategy Insight
                            </h4>
                            <ul className="space-y-4">
-                              {brief.invest_smart.takeaways?.slice(0,3).map((t, i) => (
-                                 <li key={i} className="text-sm text-[var(--text-primary)] flex items-start gap-3">
-                                    <span className="text-[var(--accent-blue)] mt-0.5 opacity-60">↳</span>
-                                    <span className="leading-relaxed font-medium">{t}</span>
-                                 </li>
-                              ))}
+                              {brief.invest_smart.takeaways && brief.invest_smart.takeaways.length > 0 ? (
+                                 brief.invest_smart.takeaways.slice(0,3).map((t, i) => (
+                                    <li key={i} className="text-sm text-[var(--text-primary)] flex items-start gap-3">
+                                       <span className="text-[var(--accent-blue)] mt-0.5 opacity-60">↳</span>
+                                       <span className="leading-relaxed font-medium">{t}</span>
+                                    </li>
+                                 ))
+                              ) : (
+                                 <li className="text-sm text-[var(--text-muted)] italic">No specific strategy takeaways extracted.</li>
+                              )}
                            </ul>
                         </div>
 
@@ -269,35 +299,48 @@ export default function Dashboard() {
                               <span className="w-4 h-px bg-[var(--accent-purple)]"></span> Market Narrative
                            </h4>
                            <ul className="space-y-4">
-                              {brief.invest_smart.insights?.slice(0,3).map((t, i) => (
-                                 <li key={i} className="text-sm text-[var(--text-primary)] flex items-start gap-3">
-                                    <span className="text-[var(--accent-purple)] mt-0.5 opacity-60">↳</span>
-                                    <span className="leading-relaxed font-medium">{t}</span>
-                                 </li>
-                              ))}
+                              {brief.invest_smart.insights && brief.invest_smart.insights.length > 0 ? (
+                                 brief.invest_smart.insights.slice(0,3).map((t, i) => (
+                                    <li key={i} className="text-sm text-[var(--text-primary)] flex items-start gap-3">
+                                       <span className="text-[var(--accent-purple)] mt-0.5 opacity-60">↳</span>
+                                       <span className="leading-relaxed font-medium">{t}</span>
+                                    </li>
+                                 ))
+                              ) : (
+                                 <li className="text-sm text-[var(--text-muted)] italic">No market narrative insights available.</li>
+                              )}
                            </ul>
                         </div>
                      </div>
 
+                     {/* Stocks Discussed */}
                      {/* Stocks Discussed */}
                      <div className="bg-[var(--bg-primary)]/30 rounded-2xl p-6 border border-[var(--border-default)]/30">
                         <h4 className="text-[10px] font-black uppercase tracking-widest text-[var(--accent-green)] mb-5 flex items-center gap-2">
                            <span className="w-4 h-px bg-[var(--accent-green)]"></span> Stocks Discussed
                         </h4>
                         <div className="flex flex-col gap-3 h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                           {brief.invest_smart.stocks?.map((s, i) => (
-                              <div key={i} className="flex flex-col bg-[var(--bg-card)] p-4 rounded-xl border border-[var(--border-default)] shadow-sm hover:shadow-md transition-shadow group/stock">
-                                 <div className="flex justify-between items-center mb-2">
-                                    <span className="font-mono text-white font-bold text-sm group-hover/stock:text-[var(--accent-blue)] transition-colors">{s.symbol}</span>
-                                    <span className={`text-[9px] px-2.5 py-1 rounded-md font-black tracking-widest uppercase ${
-                                       s.action === 'BUY' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
-                                       s.action === 'AVOID' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
-                                       'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                                    }`}>{s.action}</span>
+                           {brief.invest_smart.stocks && brief.invest_smart.stocks.length > 0 ? (
+                              brief.invest_smart.stocks.map((s, i) => (
+                                 <div key={i} className="flex flex-col bg-[var(--bg-card)] p-4 rounded-xl border border-[var(--border-default)] shadow-sm hover:shadow-md transition-shadow group/stock">
+                                    <div className="flex justify-between items-center mb-2">
+                                       <span className="font-mono text-white font-bold text-sm group-hover/stock:text-[var(--accent-blue)] transition-colors">{s.symbol}</span>
+                                       <span className={`text-[9px] px-2.5 py-1 rounded-md font-black tracking-widest uppercase ${
+                                          s.action === 'BUY' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
+                                          s.action === 'AVOID' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                                          'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                                       }`}>{s.action}</span>
+                                    </div>
+                                    <p className="text-xs text-[var(--text-muted)] leading-relaxed">{s.reason}</p>
                                  </div>
-                                 <p className="text-xs text-[var(--text-muted)] leading-relaxed">{s.reason}</p>
+                              ))
+                           ) : (
+                              <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                                 <Monitor className="w-8 h-8 text-[var(--text-muted)] mb-3 opacity-50" />
+                                 <p className="text-sm text-[var(--text-secondary)] font-medium">No specific stocks highlighted</p>
+                                 <p className="text-xs text-[var(--text-muted)] mt-1">Watch the video for broader market analysis</p>
                               </div>
-                           ))}
+                           )}
                         </div>
                      </div>
 

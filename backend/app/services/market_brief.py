@@ -265,11 +265,6 @@ def get_latest_cached_invest_smart() -> Optional[Dict]:
     try:
         cached = db.query(InvestSmartCache).order_by(InvestSmartCache.analyzed_at.desc()).first()
         if cached:
-            if not cached.data.get("stocks"):
-                logger.info("Found cached InvestSmart with empty stocks. Deleting and refreshing.")
-                db.delete(cached)
-                db.commit()
-                return force_refresh_invest_smart()
             return cached.data
         
         # If DB is completely empty, do a first-time fetch automatically
