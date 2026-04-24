@@ -13,7 +13,7 @@ export default function AnalyzePage() {
   const [data, setData] = useState<StockDetails | null>(null);
 
   const [showDropdown, setShowDropdown] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
