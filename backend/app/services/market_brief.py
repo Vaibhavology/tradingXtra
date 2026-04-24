@@ -265,6 +265,11 @@ def get_latest_cached_invest_smart() -> Optional[Dict]:
     try:
         cached = db.query(InvestSmartCache).order_by(InvestSmartCache.analyzed_at.desc()).first()
         if cached:
+            if not cached.data.get("stocks"):
+                logger.info("Found cached InvestSmart with empty stocks. Deleting and refreshing.")
+                db.delete(cached)
+                db.commit()
+                return force_refresh_invest_smart()
             return cached.data
         
         # If DB is completely empty, do a first-time fetch automatically
@@ -328,10 +333,11 @@ def force_refresh_invest_smart() -> Optional[Dict]:
                 "source": "The Wealth Magnet",
             }
 
-        # Save to database to avoid hitting Gemini again for this video
-        new_cache = InvestSmartCache(video_link=link, data=result)
-        db.add(new_cache)
-        db.commit()
+        # Only save to database if we actually got valid analysis (so we retry if API was missing)
+        if result.get("stocks"):
+            new_cache = InvestSmartCache(video_link=link, data=result)
+            db.add(new_cache)
+            db.commit()
 
         # Update the main brief cache so it reflects immediately
         with _lock:
