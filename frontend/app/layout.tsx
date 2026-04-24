@@ -3,20 +3,30 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 
 export const metadata: Metadata = {
-  title: "TradingXtra — Intelligent Quantitative Trading Terminal",
-  description: "An institutional-grade trading terminal featuring real-time market data, AI-driven stock intelligence, and expected value (EV) risk management.",
-  keywords: ["quantitative trading", "stock market", "NIFTY50", "trading terminal", "AI trading", "algorithmic trading", "portfolio management", "expected value"],
-  authors: [{ name: "Vaibhav" }],
-  creator: "Vaibhav",
+  title: "TradingXtra – AI Trading Terminal",
+  description: "Quant-based trading intelligence platform with EV scoring, market brief, AI-powered stock insights, and professional trading dashboard.",
+  keywords: [
+    "trading app", "stock analysis", "AI trading", "quant trading", "stock prediction India",
+    "AI stock analysis", "trading signals", "stock market dashboard", "trading terminal",
+    "algorithmic trading platform", "expected value trading", "probability based trading",
+    "best trading app India", "how to analyze stocks", "how to trade stocks",
+    "stock market strategies", "intraday trading strategies", "swing trading analysis",
+    "NSE stocks analysis", "BSE stock market", "Indian stock market analysis", "Nifty 50 analysis", "bank nifty trading",
+    "AI stock prediction", "machine learning trading", "AI trading assistant", "automated trading insights",
+    "trading dashboard app", "professional trading software", "stock research platform",
+    "market intelligence platform", "vaibhavology", "Vaibhav S"
+  ],
+  authors: [{ name: "Vaibhav S" }],
+  creator: "Vaibhav S",
   publisher: "TradingXtra",
   openGraph: {
-    title: "TradingXtra — Intelligent Quantitative Trading Terminal",
-    description: "An institutional-grade trading terminal featuring real-time market data, AI-driven stock intelligence, and expected value (EV) risk management.",
-    url: "https://tradingxtra.vercel.app",
+    title: "TradingXtra – AI Trading Terminal",
+    description: "Quant-based trading intelligence platform with EV scoring, market brief, AI-powered stock insights, and professional trading dashboard.",
+    url: "https://trading-xtra.vercel.app",
     siteName: "TradingXtra",
     images: [
       {
-        url: "https://tradingxtra.vercel.app/og-image.png",
+        url: "https://trading-xtra.vercel.app/og-image.png",
         width: 1200,
         height: 630,
         alt: "TradingXtra Command Center Dashboard",
@@ -27,9 +37,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "TradingXtra — Intelligent Quantitative Terminal",
-    description: "AI-driven stock intelligence, automated EV risk management, and real-time market narratives.",
-    images: ["https://tradingxtra.vercel.app/og-image.png"],
+    title: "TradingXtra – AI Trading Terminal",
+    description: "Quant-based trading intelligence platform with EV scoring, market brief, AI-powered stock insights, and professional trading dashboard.",
+    images: ["https://trading-xtra.vercel.app/og-image.png"],
     creator: "@vaibhavology",
   },
   robots: {
