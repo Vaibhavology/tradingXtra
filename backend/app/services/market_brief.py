@@ -586,10 +586,10 @@ def generate_brief() -> Dict:
     from app.agents.regime_detector import detect as detect_regime
     from app.data_fetcher import ensure_data
 
-    nifty_full = ensure_data("NIFTY50", min_rows=20)
+    nifty_full = ensure_data("NIFTY50", min_rows=20, allow_stale=True)
     market_data = nifty_full[-30:] if nifty_full else []
     
-    vix_full = ensure_data("INDIAVIX", min_rows=10)
+    vix_full = ensure_data("INDIAVIX", min_rows=10, allow_stale=True)
     vix_data = vix_full[-10:] if vix_full else []
 
     regime_result = detect_regime(

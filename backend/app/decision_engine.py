@@ -152,7 +152,7 @@ def should_reject(p_win, ev, rr_ratio, atr, p_win_threshold=None) -> Tuple[bool,
 
 # ── Main Entry Point ─────────────────────────────────────────────────
 
-def evaluate(symbol: str) -> Dict:
+def evaluate(symbol: str, allow_stale: bool = False) -> Dict:
     """
     Full Phase 2.5 evaluation pipeline.
 
@@ -174,7 +174,7 @@ def evaluate(symbol: str) -> Dict:
     logger.info(f"[{symbol}] Starting evaluation...")
 
     # ── Step 1: Data ─────────────────────────────────────────────
-    stock_data = ensure_data(symbol)
+    stock_data = ensure_data(symbol, allow_stale=allow_stale)
 
     if len(stock_data) < 20:
         logger.warning(f"[{symbol}] Insufficient data: {len(stock_data)} rows")

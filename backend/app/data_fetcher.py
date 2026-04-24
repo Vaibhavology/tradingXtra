@@ -288,7 +288,7 @@ def get_stock_data(symbol: str, days: int = 120) -> List[Dict]:
 
 # ── Smart Data Loader (main entry point) ─────────────────────────────
 
-def ensure_data(symbol: str, min_rows: int = 20) -> List[Dict]:
+def ensure_data(symbol: str, min_rows: int = 20, allow_stale: bool = False) -> List[Dict]:
     """
     3-level data resolution with cache-hit/miss logging:
       1. In-memory cache  → instant (< 1ms)
@@ -304,8 +304,8 @@ def ensure_data(symbol: str, min_rows: int = 20) -> List[Dict]:
     # ── Level 2: Database ────────────────────────────────────────
     data = get_stock_data(symbol, days=120)
 
-    if len(data) >= min_rows and _is_fetch_fresh(symbol):
-        logger.debug(f"[{symbol}] DB HIT ({len(data)} rows, fresh)")
+    if len(data) >= min_rows and (_is_fetch_fresh(symbol) or allow_stale):
+        logger.debug(f"[{symbol}] DB HIT ({len(data)} rows, fresh/stale allowed)")
         _set_cache(symbol, data)
         return data
 
@@ -316,7 +316,7 @@ def ensure_data(symbol: str, min_rows: int = 20) -> List[Dict]:
             f"fetching 120d from yfinance..."
         )
         fetch_and_store(symbol, period="120d")
-    elif not _is_fetch_fresh(symbol):
+    elif not _is_fetch_fresh(symbol) and not allow_stale:
         logger.info(
             f"[{symbol}] DATA STALE — refreshing from yfinance..."
         )

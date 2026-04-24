@@ -133,21 +133,25 @@ async def get_decision(
 async def scan_all():
     """Scan all stocks and return ranked results."""
     from app.data_fetcher import NSE_STOCKS
+    import asyncio
 
     results = []
     accepted = 0
     rejected = 0
 
-    for symbol in NSE_STOCKS:
-        try:
-            result = evaluate(symbol)
-            results.append(result)
-            if result.get("decision") == "ACCEPT":
-                accepted += 1
-            else:
-                rejected += 1
-        except Exception as e:
-            logger.error(f"Scan failed for {symbol}: {e}")
+    loop = asyncio.get_running_loop()
+    
+    # Run all evaluates concurrently
+    tasks = [
+        loop.run_in_executor(None, evaluate, symbol, True)  # True = allow_stale
+        for symbol in NSE_STOCKS
+    ]
+    
+    evaluated = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for symbol, result in zip(NSE_STOCKS.keys(), evaluated):
+        if isinstance(result, Exception):
+            logger.error(f"Scan failed for {symbol}: {result}")
             results.append({
                 "symbol": symbol,
                 "name": NSE_STOCKS[symbol]["name"],
@@ -159,11 +163,17 @@ async def scan_all():
                 "stop_loss": 0.0,
                 "target": 0.0,
                 "decision": "ERROR",
-                "rejection_reason": str(e),
+                "rejection_reason": str(result),
                 "features": {},
                 "data_points": 0,
             })
             rejected += 1
+        else:
+            results.append(result)
+            if result.get("decision") == "ACCEPT":
+                accepted += 1
+            else:
+                rejected += 1
 
     # Sort: ACCEPT first (by EV desc), then REJECT, then ERROR
     def sort_key(r):
