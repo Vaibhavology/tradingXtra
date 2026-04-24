@@ -1,0 +1,578 @@
+{
+  "market_status": {
+    "nifty": {
+      "value": 21892.75,
+      "change": 0.62,
+      "direction": "up"
+    },
+    "bank_nifty": {
+      "value": 46234.5,
+      "change": 0.45,
+      "direction": "up"
+    },
+    "india_vix": 13.25,
+    "vix_change": -2.1,
+    "fii_flow": {
+      "value": 1245.32,
+      "type": "buy"
+    },
+    "dii_flow": {
+      "value": 892.15,
+      "type": "buy"
+    },
+    "nifty_return_7d": 1.2
+  },
+  "sectors": {
+    "Metals": 4.2,
+    "Defence": 3.8,
+    "PSU Banks": 3.5,
+    "Energy": 2.8,
+    "Infrastructure": 2.4,
+    "Auto": 1.8,
+    "Banking": 1.5,
+    "IT": -0.8,
+    "Pharma": 0.3,
+    "FMCG": 0.1
+  },
+  "stocks": [
+    {
+      "symbol": "HINDZINC",
+      "name": "Hindustan Zinc",
+      "sector": "Metals",
+      "current_price": 320.5,
+      "price_history": [
+        295,
+        298,
+        302,
+        308,
+        312,
+        315,
+        318,
+        320,
+        322,
+        320.5
+      ],
+      "volume_history": [
+        1200000,
+        1100000,
+        1300000,
+        1500000,
+        1800000,
+        2200000,
+        2500000,
+        2800000,
+        3200000,
+        3500000
+      ],
+      "delivery_percent": 52,
+      "fii_net": 45.2,
+      "dii_net": 22.1
+    },
+    {
+      "symbol": "VEDL",
+      "name": "Vedanta Ltd",
+      "sector": "Metals",
+      "current_price": 445.8,
+      "price_history": [
+        410,
+        415,
+        420,
+        428,
+        432,
+        438,
+        442,
+        445,
+        448,
+        445.8
+      ],
+      "volume_history": [
+        8000000,
+        7500000,
+        8200000,
+        9500000,
+        11000000,
+        12500000,
+        14000000,
+        15500000,
+        17000000,
+        18500000
+      ],
+      "delivery_percent": 48,
+      "fii_net": 62.5,
+      "dii_net": 35.8
+    },
+    {
+      "symbol": "COALINDIA",
+      "name": "Coal India",
+      "sector": "Energy",
+      "current_price": 485.2,
+      "price_history": [
+        455,
+        458,
+        462,
+        468,
+        472,
+        478,
+        482,
+        485,
+        488,
+        485.2
+      ],
+      "volume_history": [
+        5000000,
+        4800000,
+        5200000,
+        5800000,
+        6500000,
+        7200000,
+        8000000,
+        8800000,
+        9500000,
+        10200000
+      ],
+      "delivery_percent": 55,
+      "fii_net": 38.2,
+      "dii_net": 28.5
+    },
+    {
+      "symbol": "ONGC",
+      "name": "Oil and Natural Gas Corp",
+      "sector": "Energy",
+      "current_price": 285.4,
+      "price_history": [
+        268,
+        270,
+        272,
+        275,
+        278,
+        280,
+        282,
+        284,
+        286,
+        285.4
+      ],
+      "volume_history": [
+        12000000,
+        11500000,
+        12500000,
+        14000000,
+        15500000,
+        17000000,
+        18500000,
+        20000000,
+        21500000,
+        23000000
+      ],
+      "delivery_percent": 45,
+      "fii_net": 52.8,
+      "dii_net": 18.2
+    },
+    {
+      "symbol": "HAL",
+      "name": "Hindustan Aeronautics",
+      "sector": "Defence",
+      "current_price": 4250.0,
+      "price_history": [
+        3950,
+        3980,
+        4020,
+        4080,
+        4120,
+        4160,
+        4200,
+        4230,
+        4260,
+        4250.0
+      ],
+      "volume_history": [
+        800000,
+        750000,
+        820000,
+        950000,
+        1100000,
+        1250000,
+        1400000,
+        1550000,
+        1700000,
+        1850000
+      ],
+      "delivery_percent": 58,
+      "fii_net": 85.2,
+      "dii_net": 42.5
+    },
+    {
+      "symbol": "BEL",
+      "name": "Bharat Electronics",
+      "sector": "Defence",
+      "current_price": 285.6,
+      "price_history": [
+        265,
+        268,
+        272,
+        276,
+        278,
+        280,
+        282,
+        284,
+        286,
+        285.6
+      ],
+      "volume_history": [
+        15000000,
+        14500000,
+        15500000,
+        17000000,
+        19000000,
+        21000000,
+        23000000,
+        25000000,
+        27000000,
+        29000000
+      ],
+      "delivery_percent": 51,
+      "fii_net": 48.5,
+      "dii_net": 32.1
+    },
+    {
+      "symbol": "SBIN",
+      "name": "State Bank of India",
+      "sector": "PSU Banks",
+      "current_price": 825.3,
+      "price_history": [
+        780,
+        785,
+        792,
+        800,
+        808,
+        815,
+        820,
+        825,
+        828,
+        825.3
+      ],
+      "volume_history": [
+        18000000,
+        17500000,
+        18500000,
+        20000000,
+        22000000,
+        24000000,
+        26000000,
+        28000000,
+        30000000,
+        32000000
+      ],
+      "delivery_percent": 42,
+      "fii_net": 72.5,
+      "dii_net": 45.8
+    },
+    {
+      "symbol": "PNB",
+      "name": "Punjab National Bank",
+      "sector": "PSU Banks",
+      "current_price": 128.5,
+      "price_history": [
+        118,
+        120,
+        122,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        128.5
+      ],
+      "volume_history": [
+        25000000,
+        24000000,
+        26000000,
+        28000000,
+        31000000,
+        34000000,
+        37000000,
+        40000000,
+        43000000,
+        46000000
+      ],
+      "delivery_percent": 38,
+      "fii_net": 28.5,
+      "dii_net": 18.2
+    },
+    {
+      "symbol": "IRFC",
+      "name": "Indian Railway Finance",
+      "sector": "Infrastructure",
+      "current_price": 185.2,
+      "price_history": [
+        172,
+        174,
+        176,
+        178,
+        180,
+        182,
+        183,
+        184,
+        186,
+        185.2
+      ],
+      "volume_history": [
+        35000000,
+        34000000,
+        36000000,
+        39000000,
+        42000000,
+        45000000,
+        48000000,
+        51000000,
+        54000000,
+        57000000
+      ],
+      "delivery_percent": 35,
+      "fii_net": 32.5,
+      "dii_net": 22.8
+    },
+    {
+      "symbol": "RECLTD",
+      "name": "REC Limited",
+      "sector": "Infrastructure",
+      "current_price": 545.8,
+      "price_history": [
+        510,
+        515,
+        520,
+        528,
+        535,
+        540,
+        545,
+        548,
+        550,
+        545.8
+      ],
+      "volume_history": [
+        8000000,
+        7800000,
+        8200000,
+        9000000,
+        10000000,
+        11000000,
+        12000000,
+        13000000,
+        14000000,
+        15000000
+      ],
+      "delivery_percent": 48,
+      "fii_net": 55.2,
+      "dii_net": 28.5
+    },
+    {
+      "symbol": "TATAMOTORS",
+      "name": "Tata Motors",
+      "sector": "Auto",
+      "current_price": 985.4,
+      "price_history": [
+        920,
+        928,
+        938,
+        950,
+        962,
+        972,
+        980,
+        985,
+        990,
+        985.4
+      ],
+      "volume_history": [
+        12000000,
+        11500000,
+        12500000,
+        14000000,
+        15500000,
+        17000000,
+        18500000,
+        20000000,
+        21500000,
+        23000000
+      ],
+      "delivery_percent": 45,
+      "fii_net": 68.5,
+      "dii_net": 35.2
+    },
+    {
+      "symbol": "NTPC",
+      "name": "NTPC Limited",
+      "sector": "Energy",
+      "current_price": 385.2,
+      "price_history": [
+        358,
+        362,
+        368,
+        372,
+        376,
+        380,
+        382,
+        384,
+        386,
+        385.2
+      ],
+      "volume_history": [
+        18000000,
+        17500000,
+        18500000,
+        20000000,
+        22000000,
+        24000000,
+        26000000,
+        28000000,
+        30000000,
+        32000000
+      ],
+      "delivery_percent": 48,
+      "fii_net": 58.5,
+      "dii_net": 32.2
+    },
+    {
+      "symbol": "POWERGRID",
+      "name": "Power Grid Corp",
+      "sector": "Infrastructure",
+      "current_price": 325.8,
+      "price_history": [
+        305,
+        308,
+        312,
+        316,
+        318,
+        320,
+        322,
+        324,
+        326,
+        325.8
+      ],
+      "volume_history": [
+        15000000,
+        14500000,
+        15500000,
+        17000000,
+        19000000,
+        21000000,
+        23000000,
+        25000000,
+        27000000,
+        29000000
+      ],
+      "delivery_percent": 52,
+      "fii_net": 45.2,
+      "dii_net": 28.5
+    },
+    {
+      "symbol": "HDFCBANK",
+      "name": "HDFC Bank",
+      "sector": "Banking",
+      "current_price": 1685.5,
+      "price_history": [
+        1650,
+        1655,
+        1660,
+        1665,
+        1670,
+        1675,
+        1680,
+        1682,
+        1685,
+        1685.5
+      ],
+      "volume_history": [
+        8000000,
+        7800000,
+        8100000,
+        8300000,
+        8500000,
+        8700000,
+        8900000,
+        9100000,
+        9300000,
+        9500000
+      ],
+      "delivery_percent": 55,
+      "fii_net": 42.5,
+      "dii_net": 28.2
+    },
+    {
+      "symbol": "INFY",
+      "name": "Infosys",
+      "sector": "IT",
+      "current_price": 1520.0,
+      "price_history": [
+        1540,
+        1535,
+        1530,
+        1528,
+        1525,
+        1522,
+        1520,
+        1518,
+        1520,
+        1520.0
+      ],
+      "volume_history": [
+        6000000,
+        5800000,
+        5900000,
+        6000000,
+        6100000,
+        6200000,
+        6300000,
+        6400000,
+        6500000,
+        6600000
+      ],
+      "delivery_percent": 48,
+      "fii_net": -15.2,
+      "dii_net": 8.5
+    }
+  ],
+  "twitter_signals": {
+    "HINDZINC": {
+      "mentions": 45,
+      "engagement_score": 0.85,
+      "theme": "metals momentum",
+      "sentiment": 0.72
+    },
+    "VEDL": {
+      "mentions": 62,
+      "engagement_score": 0.88,
+      "theme": "metals rally",
+      "sentiment": 0.78
+    },
+    "HAL": {
+      "mentions": 85,
+      "engagement_score": 0.92,
+      "theme": "defence order book",
+      "sentiment": 0.85
+    },
+    "COALINDIA": {
+      "mentions": 38,
+      "engagement_score": 0.75,
+      "theme": "energy sector",
+      "sentiment": 0.68
+    },
+    "TATAMOTORS": {
+      "mentions": 72,
+      "engagement_score": 0.82,
+      "theme": "EV momentum",
+      "sentiment": 0.75
+    },
+    "SBIN": {
+      "mentions": 55,
+      "engagement_score": 0.78,
+      "theme": "PSU bank rally",
+      "sentiment": 0.7
+    },
+    "NTPC": {
+      "mentions": 42,
+      "engagement_score": 0.72,
+      "theme": "power sector",
+      "sentiment": 0.65
+    }
+  }
+}
