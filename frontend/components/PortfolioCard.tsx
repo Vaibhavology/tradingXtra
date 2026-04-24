@@ -1,5 +1,6 @@
 "use client";
 import { PortfolioState } from "@/lib/api";
+import { Wallet } from "lucide-react";
 
 export default function PortfolioCard({ data }: { data: PortfolioState }) {
   const cap = data.capital;
@@ -13,7 +14,7 @@ export default function PortfolioCard({ data }: { data: PortfolioState }) {
   return (
     <div className="p-5">
       <h3 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-widest mb-4 flex items-center gap-2">
-        <span>💰</span> Portfolio
+        <Wallet className="w-4 h-4" /> Portfolio
       </h3>
 
       {/* Capital row */}

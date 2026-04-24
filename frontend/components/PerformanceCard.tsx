@@ -1,11 +1,12 @@
 "use client";
 import { PerformanceData } from "@/lib/api";
+import { BarChart2 } from "lucide-react";
 
 export default function PerformanceCard({ data }: { data: PerformanceData }) {
   return (
     <div className="p-5">
       <h3 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-widest mb-4 flex items-center gap-2">
-        <span>📊</span> Performance
+        <BarChart2 className="w-4 h-4" /> Performance
       </h3>
 
       <div className="grid grid-cols-2 gap-3">

@@ -5,6 +5,7 @@ import {
   getScan, getMarketBrief, getPortfolio, getPerformance,
   ScanResult, MarketBrief as MarketBriefType, PortfolioState, PerformanceData, TradeDecision,
 } from "@/lib/api";
+import { Activity, AlertTriangle, Monitor, Globe, MapPin } from "lucide-react";
 import PickCard from "@/components/PickCard";
 import PortfolioCard from "@/components/PortfolioCard";
 import PerformanceCard from "@/components/PerformanceCard";
@@ -120,7 +121,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="terminal-card rounded-2xl p-16 text-center flex flex-col items-center justify-center border-dashed border-2 border-[var(--border-default)] bg-[var(--bg-card)]/50">
-              <span className="text-5xl mb-4 opacity-40">📡</span>
+              <Activity className="w-12 h-12 mb-4 opacity-40 text-[var(--text-primary)]" />
               <p className="text-xl text-[var(--text-primary)] font-medium tracking-tight">Scanning Market Data...</p>
               <p className="text-sm text-[var(--text-muted)] mt-2">Awaiting high-probability technical setups</p>
             </div>
@@ -168,7 +169,7 @@ export default function Dashboard() {
                 <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-full blur-3xl group-hover:bg-red-500/20 transition-colors" />
                 <div className="flex justify-between items-start relative z-10 mb-4">
                   <h3 className="text-xs uppercase tracking-widest font-black text-red-400 flex items-center gap-2">
-                     <span className="text-lg">⚠️</span> Market Alerts
+                     <AlertTriangle className="w-5 h-5" /> Market Alerts
                   </h3>
                   <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-1 rounded font-bold uppercase tracking-widest">Expand</span>
                 </div>
@@ -218,7 +219,7 @@ export default function Dashboard() {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
                <div>
                   <div className="flex items-center gap-3">
-                     <span className="text-3xl drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]">📺</span>
+                     <Monitor className="w-8 h-8 text-[var(--accent-blue)] drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]" />
                      <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">Invest Smart</h2>
                   </div>
                   <p className="text-xs font-mono text-[var(--accent-blue)] uppercase tracking-widest mt-2 ml-11 font-bold">Expert Market Thinking Layer</p>
@@ -331,7 +332,7 @@ export default function Dashboard() {
           >
             <div className="p-6 border-b border-[var(--border-default)] flex justify-between items-center bg-[var(--bg-primary)]">
               <div className="flex items-center gap-3">
-                <span className="text-2xl">⚠️</span>
+                <AlertTriangle className="w-6 h-6 text-white" />
                 <h2 className="text-xl font-bold text-white tracking-tight">Expanded Market Context</h2>
               </div>
               <button 
@@ -379,7 +380,7 @@ export default function Dashboard() {
                 {/* Global News */}
                 <div>
                   <h3 className="text-xs font-black uppercase tracking-widest text-[var(--accent-blue)] mb-4 flex items-center gap-2">
-                    <span className="text-lg">🌍</span> Global Market Drivers
+                    <Globe className="w-5 h-5" /> Global Market Drivers
                   </h3>
                   <ul className="space-y-3">
                     {brief?.drivers?.global?.map((news, i) => (
@@ -396,7 +397,7 @@ export default function Dashboard() {
                 {/* India News */}
                 <div>
                   <h3 className="text-xs font-black uppercase tracking-widest text-orange-400 mb-4 flex items-center gap-2">
-                    <span className="text-lg">🇮🇳</span> Domestic Catalysts
+                    <MapPin className="w-5 h-5" /> Domestic Catalysts
                   </h3>
                   <ul className="space-y-3">
                     {brief?.drivers?.india?.map((news, i) => (

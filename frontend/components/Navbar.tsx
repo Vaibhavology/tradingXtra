@@ -1,14 +1,15 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Flame, Zap, Search, Folder, TrendingUp, ClipboardList, User } from "lucide-react";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Dashboard", icon: "⚡" },
-  { href: "/analyze", label: "Analyze", icon: "🔍" },
-  { href: "/portfolio", label: "Portfolio", icon: "📂" },
-  { href: "/performance", label: "Performance", icon: "📈" },
-  { href: "/trades", label: "Trades", icon: "📋" },
-  { href: "/about", label: "About", icon: "👤" },
+  { href: "/", label: "Dashboard", icon: <Zap className="w-4 h-4" /> },
+  { href: "/analyze", label: "Analyze", icon: <Search className="w-4 h-4" /> },
+  { href: "/portfolio", label: "Portfolio", icon: <Folder className="w-4 h-4" /> },
+  { href: "/performance", label: "Performance", icon: <TrendingUp className="w-4 h-4" /> },
+  { href: "/trades", label: "Trades", icon: <ClipboardList className="w-4 h-4" /> },
+  { href: "/about", label: "About", icon: <User className="w-4 h-4" /> },
 ];
 
 export default function Navbar() {
@@ -19,7 +20,7 @@ export default function Navbar() {
       <div className="max-w-[1400px] mx-auto px-4 min-h-14 flex flex-col sm:flex-row items-center justify-between gap-2 py-2 sm:py-0">
         <div className="w-full sm:w-auto flex justify-center sm:justify-start">
           <Link href="/" className="flex items-center gap-2 group shrink-0">
-            <span className="text-xl">🔥</span>
+            <Flame className="w-5 h-5 text-orange-500" />
             <span className="text-lg font-bold tracking-tight text-white group-hover:text-[var(--accent-blue)] transition-colors">
               TradingXtra
             </span>
@@ -42,7 +43,7 @@ export default function Navbar() {
                     : "text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-card)]"
                 }`}
               >
-                <span className="text-lg md:text-sm md:mr-1.5">{item.icon}</span>
+                <span className="md:mr-1.5 flex items-center justify-center">{item.icon}</span>
                 <span className="ml-1.5 md:ml-0 inline-block">{item.label}</span>
               </Link>
             );

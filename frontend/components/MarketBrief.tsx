@@ -1,5 +1,6 @@
 "use client";
 import { MarketBrief as MarketBriefType } from "@/lib/api";
+import { TrendingUp, Zap, MoveHorizontal, HelpCircle, Activity, Globe, MapPin, AlertTriangle } from "lucide-react";
 
 export default function MarketBriefCard({ data }: { data: MarketBriefType }) {
   const biasColor =
@@ -10,14 +11,14 @@ export default function MarketBriefCard({ data }: { data: MarketBriefType }) {
         : "text-[var(--accent-yellow)]";
 
   const behaviorIcon =
-    data.behavior === "Trending" ? "📈" :
-    data.behavior === "Volatile" ? "⚡" :
-    data.behavior === "Range-bound" ? "↔️" : "❓";
+    data.behavior === "Trending" ? <TrendingUp className="w-4 h-4 inline-block mr-1" /> :
+    data.behavior === "Volatile" ? <Zap className="w-4 h-4 inline-block mr-1" /> :
+    data.behavior === "Range-bound" ? <MoveHorizontal className="w-4 h-4 inline-block mr-1" /> : <HelpCircle className="w-4 h-4 inline-block mr-1" />;
 
   return (
     <div className="p-5">
       <h3 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-widest mb-4 flex items-center gap-2">
-        <span>📡</span> Market Brief
+        <Activity className="w-4 h-4" /> Market Brief
       </h3>
 
       {/* Bias + Behavior */}
@@ -28,7 +29,7 @@ export default function MarketBriefCard({ data }: { data: MarketBriefType }) {
         </div>
         <div>
           <span className="text-[11px] text-[var(--text-muted)] block mb-1">Behavior</span>
-          <span className="text-sm text-white">{behaviorIcon} {data.behavior}</span>
+          <span className="text-sm text-white flex items-center">{behaviorIcon} {data.behavior}</span>
         </div>
       </div>
 
@@ -56,12 +57,12 @@ export default function MarketBriefCard({ data }: { data: MarketBriefType }) {
 
       {/* Global Drivers */}
       {data.drivers?.global?.length > 0 && (
-        <DriversSection label="🌍 Global" items={data.drivers.global} color="blue" />
+        <DriversSection label={<span className="flex items-center gap-1"><Globe className="w-3 h-3" /> Global</span>} items={data.drivers.global} color="blue" />
       )}
 
       {/* India Drivers */}
       {data.drivers?.india?.length > 0 && (
-        <DriversSection label="🇮🇳 India" items={data.drivers.india} color="blue" />
+        <DriversSection label={<span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> India</span>} items={data.drivers.india} color="blue" />
       )}
 
       {/* Sector Strength */}
@@ -88,8 +89,8 @@ export default function MarketBriefCard({ data }: { data: MarketBriefType }) {
         <div className="mb-3">
           <span className="text-[11px] text-[var(--text-muted)] block mb-1.5">Risk Alerts</span>
           {data.risk_alerts.map((r, i) => (
-            <div key={i} className="text-[11px] text-[var(--accent-yellow)] bg-[var(--accent-yellow)]/5 px-2 py-1 rounded mb-1 border border-[var(--accent-yellow)]/10">
-              ⚠ {r}
+            <div key={i} className="text-[11px] text-[var(--accent-yellow)] bg-[var(--accent-yellow)]/5 px-2 py-1 rounded mb-1 border border-[var(--accent-yellow)]/10 flex items-center gap-1.5">
+              <AlertTriangle className="w-3 h-3 shrink-0" /> {r}
             </div>
           ))}
         </div>
@@ -113,7 +114,7 @@ export default function MarketBriefCard({ data }: { data: MarketBriefType }) {
   );
 }
 
-function DriversSection({ label, items, color }: { label: string; items: string[]; color: string }) {
+function DriversSection({ label, items, color }: { label: React.ReactNode; items: string[]; color: string }) {
   const cls = color === "blue" ? "bg-[var(--accent-blue)]/10 text-[var(--accent-blue)] border-[var(--accent-blue)]/20" : "";
   return (
     <div className="mb-3">

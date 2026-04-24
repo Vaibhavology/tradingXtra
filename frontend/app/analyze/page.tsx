@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { analyzeStockDetails, StockDetails } from "@/lib/api";
 import OrderBookCard from "@/components/OrderBookCard";
 import { NSE_STOCKS } from "@/lib/nseStocks";
+import { Check, X } from "lucide-react";
 
 export default function AnalyzePage() {
   const [query, setQuery] = useState("");
@@ -168,7 +169,7 @@ export default function AnalyzePage() {
                      <ul className="space-y-1">
                        {data.strengths.map((s, i) => (
                          <li key={i} className="text-sm text-[var(--text-muted)] flex items-start gap-2">
-                           <span className="text-[var(--accent-green)]">✓</span> {s}
+                           <Check className="w-4 h-4 text-[var(--accent-green)] shrink-0" /> {s}
                          </li>
                        ))}
                      </ul>
@@ -179,7 +180,7 @@ export default function AnalyzePage() {
                      <ul className="space-y-1">
                        {data.weaknesses.map((w, i) => (
                          <li key={i} className="text-sm text-[var(--text-muted)] flex items-start gap-2">
-                           <span className="text-[var(--accent-red)]">✗</span> {w}
+                           <X className="w-4 h-4 text-[var(--accent-red)] shrink-0" /> {w}
                          </li>
                        ))}
                      </ul>

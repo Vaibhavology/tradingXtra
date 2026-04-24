@@ -1,6 +1,7 @@
 "use client";
 import { TradeDecision } from "@/lib/api";
 import Link from "next/link";
+import { Lightbulb, AlertTriangle } from "lucide-react";
 
 export default function PickCard({ pick }: { pick: TradeDecision }) {
   const pWin = (pick.probability * 100).toFixed(0);
@@ -84,7 +85,7 @@ export default function PickCard({ pick }: { pick: TradeDecision }) {
         <div className="flex-1 space-y-4 mb-4">
           <div>
             <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-semibold flex items-center gap-1.5 mb-2">
-              <span className="text-[12px]">🧠</span> Why this trade
+              <Lightbulb className="w-3 h-3" /> Why this trade
             </span>
             <ul className="space-y-1.5">
               {reasons.map((r, i) => (
@@ -98,7 +99,7 @@ export default function PickCard({ pick }: { pick: TradeDecision }) {
           {risks.length > 0 && (
             <div>
               <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-semibold flex items-center gap-1.5 mb-2">
-                <span className="text-[12px]">⚠</span> Risks
+                <AlertTriangle className="w-3 h-3" /> Risks
               </span>
               <ul className="space-y-1.5">
                 {risks.map((r, i) => (

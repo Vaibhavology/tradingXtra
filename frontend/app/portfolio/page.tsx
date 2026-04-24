@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { getPortfolio, getPerformance, PortfolioState, PerformanceData } from "@/lib/api";
+import { Info } from "lucide-react";
 
 export default function PortfolioPage() {
   const [data, setData] = useState<PortfolioState | null>(null);
@@ -40,7 +41,7 @@ export default function PortfolioPage() {
       </div>
 
       <div className="bg-blue-900/20 border border-blue-500/30 p-3 rounded-md flex items-center gap-3">
-        <span className="text-blue-400 text-lg">ℹ️</span>
+        <Info className="w-5 h-5 text-blue-400 shrink-0" />
         <p className="text-xs text-blue-200/80 font-medium">
           <strong className="text-blue-400 font-bold uppercase tracking-wider">System-Generated Portfolio: </strong> 
           This is a simulated paper-trading environment. It tracks the theoretical performance of the AI's trade recommendations to validate the system's accuracy, and is not linked to your actual brokerage account.
