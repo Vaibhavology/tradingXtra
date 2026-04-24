@@ -39,6 +39,14 @@ export default function PortfolioPage() {
         </div>
       </div>
 
+      <div className="bg-blue-900/20 border border-blue-500/30 p-3 rounded-md flex items-center gap-3">
+        <span className="text-blue-400 text-lg">ℹ️</span>
+        <p className="text-xs text-blue-200/80 font-medium">
+          <strong className="text-blue-400 font-bold uppercase tracking-wider">System-Generated Portfolio: </strong> 
+          This is a simulated paper-trading environment. It tracks the theoretical performance of the AI's trade recommendations to validate the system's accuracy, and is not linked to your actual brokerage account.
+        </p>
+      </div>
+
       {/* Top Summary Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         <StatBox label="Current Capital" value={`₹${cap.current.toLocaleString("en-IN")}`} />
