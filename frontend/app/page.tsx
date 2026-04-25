@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  getScan, getMarketBrief, getPortfolio, getPerformance, refreshInvestSmart,
+  getScan, getMarketBrief, getPortfolio, getPerformance, refreshInvestSmart, wakeBackend,
   ScanResult, MarketBrief as MarketBriefType, PortfolioState, PerformanceData, TradeDecision,
 } from "@/lib/api";
 import { Activity, AlertTriangle, Monitor, Globe, MapPin, RefreshCw } from "lucide-react";
@@ -17,6 +17,7 @@ export default function Dashboard() {
   const [portfolio, setPortfolio] = useState<PortfolioState | null>(null);
   const [perf, setPerf] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [scanLoading, setScanLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
   const [refreshingInvestSmart, setRefreshingInvestSmart] = useState(false);
@@ -37,23 +38,45 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    async function load() {
+    // Wake up Render backend immediately (fights cold start)
+    wakeBackend();
+
+    // Progressive loading: show data as each API resolves
+    // Fast APIs first (market-brief, portfolio, performance)
+    // Slow API last (scan — evaluates 35 stocks)
+    async function loadFast() {
       try {
-        const [s, b, p, pf] = await Promise.allSettled([
-          getScan(), getMarketBrief(), getPortfolio(), getPerformance(),
+        const [b, p, pf] = await Promise.allSettled([
+          getMarketBrief(), getPortfolio(), getPerformance(),
         ]);
-        if (s.status === "fulfilled") setScan(s.value);
         if (b.status === "fulfilled") setBrief(b.value);
         if (p.status === "fulfilled") setPortfolio(p.value);
         if (pf.status === "fulfilled") setPerf(pf.value);
       } catch (e) {
-        setError(String(e));
+        console.error("Fast load error:", e);
       } finally {
-        setLoading(false);
+        setLoading(false); // Show UI as soon as fast data is ready
       }
     }
-    load();
-    const interval = setInterval(load, 60_000);
+
+    async function loadScan() {
+      try {
+        const s = await getScan();
+        setScan(s);
+      } catch (e) {
+        console.error("Scan load error:", e);
+      } finally {
+        setScanLoading(false);
+      }
+    }
+
+    loadFast();
+    loadScan();
+
+    const interval = setInterval(() => {
+      loadFast();
+      loadScan();
+    }, 90_000); // Refresh every 90s instead of 60s to reduce load
     return () => clearInterval(interval);
   }, []);
 
@@ -127,7 +150,16 @@ export default function Dashboard() {
             </div>
           </div>
           
-          {acceptedPicks.length > 0 ? (
+          {scanLoading ? (
+            <div className="terminal-card rounded-2xl p-16 text-center flex flex-col items-center justify-center border-dashed border-2 border-[var(--border-default)] bg-[var(--bg-card)]/50">
+              <Activity className="w-12 h-12 mb-4 opacity-60 text-[var(--accent-blue)] animate-pulse" />
+              <p className="text-xl text-[var(--text-primary)] font-medium tracking-tight">Scanning 35 Stocks...</p>
+              <p className="text-sm text-[var(--text-muted)] mt-2">Evaluating momentum, patterns & risk for the full universe</p>
+              <div className="mt-4 w-48 h-1 bg-[var(--bg-secondary)] rounded-full overflow-hidden">
+                <div className="h-full bg-[var(--accent-blue)] rounded-full animate-pulse" style={{width: '60%'}} />
+              </div>
+            </div>
+          ) : acceptedPicks.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {acceptedPicks.map(pick => (
                 <div key={pick.symbol} className="hover:-translate-y-1 transition-transform duration-300">
@@ -138,8 +170,8 @@ export default function Dashboard() {
           ) : (
             <div className="terminal-card rounded-2xl p-16 text-center flex flex-col items-center justify-center border-dashed border-2 border-[var(--border-default)] bg-[var(--bg-card)]/50">
               <Activity className="w-12 h-12 mb-4 opacity-40 text-[var(--text-primary)]" />
-              <p className="text-xl text-[var(--text-primary)] font-medium tracking-tight">Scanning Market Data...</p>
-              <p className="text-sm text-[var(--text-muted)] mt-2">Awaiting high-probability technical setups</p>
+              <p className="text-xl text-[var(--text-primary)] font-medium tracking-tight">No Opportunities Today</p>
+              <p className="text-sm text-[var(--text-muted)] mt-2">No stocks passed the EV gates. Check back later.</p>
             </div>
           )}
 

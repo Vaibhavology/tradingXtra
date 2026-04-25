@@ -259,7 +259,9 @@ def _fetch_latest_video() -> Optional[Dict]:
 
 
 def get_latest_cached_invest_smart() -> Optional[Dict]:
-    """Get the most recently analyzed video from the database."""
+    """Get the most recently analyzed video from the database.
+    Returns None if no cached analysis exists — user must click Refresh.
+    This prevents blocking the market-brief endpoint on first load."""
     from app.database import SessionLocal, InvestSmartCache
     db = SessionLocal()
     try:
@@ -267,9 +269,10 @@ def get_latest_cached_invest_smart() -> Optional[Dict]:
         if cached:
             return cached.data
         
-        # If DB is completely empty, do a first-time fetch automatically
-        logger.info("InvestSmart DB is empty. Triggering initial fetch.")
-        return force_refresh_invest_smart()
+        # Don't auto-trigger Gemini on first load — too slow
+        # User can click "Refresh Video" button to trigger analysis
+        logger.info("InvestSmart DB is empty. User can click Refresh to fetch.")
+        return None
     except Exception as e:
         logger.error(f"InvestSmart DB read error: {e}")
         return None
@@ -356,7 +359,6 @@ def _gemini_video_analyze(video_url: str) -> Optional[Dict]:
 
     transcript_text = ""
     try:
-        from youtube_transcript_api import YouTubeTranscriptApi
         import urllib.parse
         
         # Extract video ID
@@ -368,8 +370,24 @@ def _gemini_video_analyze(video_url: str) -> Optional[Dict]:
             video_id = parsed.path.split("/")[-1]
             
         logger.info(f"InvestSmart: Fetching transcript for {video_id}...")
-        transcript = YouTubeTranscriptApi().fetch(video_id, languages=['en', 'hi', 'en-IN'])
-        transcript_text = " ".join([t.text for t in transcript.snippets])
+        
+        # Try multiple API patterns — youtube-transcript-api changed its interface
+        try:
+            # New API (v1.0+): instance-based with .fetch() returning FetchedTranscript
+            from youtube_transcript_api import YouTubeTranscriptApi
+            ytt = YouTubeTranscriptApi()
+            transcript = ytt.fetch(video_id, languages=['en', 'hi', 'en-IN'])
+            # Try .snippets (newer) then direct iteration (older)
+            if hasattr(transcript, 'snippets'):
+                transcript_text = " ".join([t.text for t in transcript.snippets])
+            else:
+                transcript_text = " ".join([t.get('text', t.text if hasattr(t, 'text') else str(t)) for t in transcript])
+        except (TypeError, AttributeError):
+            # Older API (v0.6.x): class method based
+            from youtube_transcript_api import YouTubeTranscriptApi
+            transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'hi', 'en-IN'])
+            transcript_text = " ".join([t['text'] for t in transcript_list])
+        
         logger.info(f"InvestSmart: Fetched {len(transcript_text)} chars of transcript.")
     except Exception as e:
         logger.warning(f"InvestSmart: Could not fetch transcript: {e}")
@@ -611,19 +629,23 @@ def generate_brief() -> Dict:
         ret_5d = (closes[-1] - closes[-6]) / closes[-6] * 100
         ret_1d = (closes[-1] - closes[-2]) / closes[-2] * 100 if len(closes) >= 2 else 0
 
-    # USD/INR
+    # USD/INR (timeout-wrapped to avoid blocking)
     import yfinance as yf
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+    def _fetch_usd_inr():
+        ticker = yf.Ticker("INR=X")
+        return ticker.history(period="5d")
     try:
-        usd_inr_ticker = yf.Ticker("INR=X")
-        usd_inr_data = usd_inr_ticker.history(period="5d")
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            usd_inr_data = pool.submit(_fetch_usd_inr).result(timeout=10)
         if not usd_inr_data.empty:
             usd_inr_close = usd_inr_data["Close"].iloc[-1]
             usd_inr_1d_pct = ((usd_inr_close - usd_inr_data["Close"].iloc[-2]) / usd_inr_data["Close"].iloc[-2]) * 100 if len(usd_inr_data) >= 2 else 0
             usd_inr = {"price": float(usd_inr_close), "change_pct": float(usd_inr_1d_pct)}
         else:
             usd_inr = {"price": 83.5, "change_pct": 0.0}
-    except Exception as e:
-        logger.warning(f"Failed to fetch USD/INR: {e}")
+    except (FuturesTimeout, Exception) as e:
+        logger.warning(f"USD/INR fetch timed out or failed: {e}")
         usd_inr = {"price": 83.5, "change_pct": 0.0}
 
     # ── 2. News Fetch ────────────────────────────────────────────

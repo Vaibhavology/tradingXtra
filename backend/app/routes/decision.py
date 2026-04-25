@@ -131,9 +131,17 @@ async def get_decision(
     ),
 )
 async def scan_all():
-    """Scan all stocks and return ranked results."""
+    """Scan all stocks and return ranked results. Cached for 60s."""
     from app.data_fetcher import NSE_STOCKS
     import asyncio
+    import time
+
+    # Simple in-memory cache for scan results (60s TTL)
+    if not hasattr(scan_all, "_cache"):
+        scan_all._cache = {"data": None, "ts": 0}
+    
+    if scan_all._cache["data"] and time.time() - scan_all._cache["ts"] < 60:
+        return scan_all._cache["data"]
 
     results = []
     accepted = 0
@@ -141,13 +149,27 @@ async def scan_all():
 
     loop = asyncio.get_running_loop()
     
-    # Run all evaluates concurrently
+    # Run all evaluates concurrently with allow_stale=True
     tasks = [
         loop.run_in_executor(None, evaluate, symbol, True)  # True = allow_stale
         for symbol in NSE_STOCKS
     ]
     
-    evaluated = await asyncio.gather(*tasks, return_exceptions=True)
+    # 45-second timeout — return whatever we have
+    try:
+        evaluated = await asyncio.wait_for(
+            asyncio.gather(*tasks, return_exceptions=True),
+            timeout=45.0
+        )
+    except asyncio.TimeoutError:
+        logger.warning("Scan timed out after 45s — returning partial results")
+        # Gather completed results
+        evaluated = []
+        for t in tasks:
+            if t.done():
+                evaluated.append(t.result())
+            else:
+                t.cancel()
 
     for symbol, result in zip(NSE_STOCKS.keys(), evaluated):
         if isinstance(result, Exception):
@@ -182,12 +204,17 @@ async def scan_all():
 
     results.sort(key=sort_key)
 
-    return {
+    response = {
         "results": results,
         "accepted": accepted,
         "rejected": rejected,
         "total": len(results),
     }
+    
+    # Cache for 60s
+    scan_all._cache = {"data": response, "ts": time.time()}
+    
+    return response
 
 
 @router.get(

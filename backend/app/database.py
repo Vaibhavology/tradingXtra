@@ -35,13 +35,22 @@ DATABASE_URL = os.getenv(
 # Detect SQLite for compatibility (no pool_pre_ping on SQLite)
 _is_sqlite = DATABASE_URL.startswith("sqlite")
 
-engine = create_engine(
-    DATABASE_URL,
-    echo=False,
-    pool_pre_ping=not _is_sqlite,
-    # SQLite needs check_same_thread=False for FastAPI
-    connect_args={"check_same_thread": False} if _is_sqlite else {},
-)
+if _is_sqlite:
+    engine = create_engine(
+        DATABASE_URL,
+        echo=False,
+        connect_args={"check_same_thread": False},
+    )
+else:
+    # PostgreSQL with production-ready pool settings
+    engine = create_engine(
+        DATABASE_URL,
+        echo=False,
+        pool_pre_ping=True,       # Detect dead connections before use
+        pool_size=5,              # Keep 5 connections in the pool
+        max_overflow=10,          # Allow 10 extra connections under load
+        pool_recycle=300,         # Recycle connections every 5 min (Render drops idle)
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
