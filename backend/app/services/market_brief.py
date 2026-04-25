@@ -305,7 +305,7 @@ def force_refresh_invest_smart() -> Optional[Dict]:
 
         logger.info(f"InvestSmart: new video detected, hitting Gemini for {link}")
         # ── Gemini Video Analysis (watches the actual video) ──
-        gemini_result = _gemini_video_analyze(link)
+        gemini_result = _gemini_video_analyze(link, video_title=title)
 
         if gemini_result:
             result = {
@@ -331,8 +331,8 @@ def force_refresh_invest_smart() -> Optional[Dict]:
                 "source": "The Wealth Magnet",
             }
 
-        # Only save to database if we actually got valid analysis (so we retry if API was missing)
-        if result.get("stocks"):
+        # Save to database if we got any meaningful analysis
+        if result.get("stocks") or result.get("takeaways"):
             new_cache = InvestSmartCache(video_link=link, data=result)
             db.add(new_cache)
             db.commit()
@@ -350,7 +350,7 @@ def force_refresh_invest_smart() -> Optional[Dict]:
         db.close()
 
 
-def _gemini_video_analyze(video_url: str) -> Optional[Dict]:
+def _gemini_video_analyze(video_url: str, video_title: str = "") -> Optional[Dict]:
     """Pass the YouTube video URL and transcript to Gemini and let it watch + analyze."""
     api_key = os.getenv("GEMINI_API_KEY", "")
     if not api_key:
@@ -391,86 +391,129 @@ def _gemini_video_analyze(video_url: str) -> Optional[Dict]:
         logger.info(f"InvestSmart: Fetched {len(transcript_text)} chars of transcript.")
     except Exception as e:
         logger.warning(f"InvestSmart: Could not fetch transcript: {e}")
-        transcript_text = "[No transcript available. Use visual/audio analysis if possible or rely on title/metadata.]"
+        transcript_text = ""
 
     try:
         from google import genai
+        from google.genai import types as genai_types
         import json as _json
 
         client = genai.Client(api_key=api_key)
 
         stock_list = ", ".join(NSE_STOCKS.keys())
 
-        prompt = f"""You are an expert stock market analyst. I am providing you with the TRANSCRIPT of a recent YouTube video about the Indian Stock Market.
+        json_schema = """{
+  "stocks": [
+    {"symbol": "SBIN", "action": "BUY", "reason": "Strong chart, PSU bank leader", "confidence": 0.8}
+  ],
+  "takeaways": ["Key point 1", "Key point 2", "Key point 3"],
+  "market_commentary": "2-3 sentence summary of overall market view",
+  "insights": ["Actionable insight 1", "Actionable insight 2"]
+}"""
+
+        rules = f"""STRICT RULES:
+- ONLY include stocks the speaker EXPLICITLY mentions.
+- For stocks not in the KNOWN list, use the commonly used NSE ticker.
+- action: BUY (positive), WATCH (neutral), AVOID (negative/warned)
+- reason: 1 sentence summarizing what the speaker said
+- confidence: 0.8 (strong conviction), 0.6 (casual mention), 0.4 (negative)
+- takeaways: 3-5 KEY points a viewer would remember
+- market_commentary: 2-3 sentence overall market view expressed in the video
+- insights: 2-3 actionable trading insights
+- Return ONLY valid JSON. No markdown, no code blocks.
+- KNOWN NSE STOCKS: {stock_list}"""
+
+        # ── Strategy 1: Gemini native YouTube understanding ──
+        # Gemini can directly process YouTube URLs as content
+        response = None
+        MODELS = [
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-2.0-flash",
+            "gemini-2.0-flash-lite",
+        ]
+
+        if not transcript_text:
+            logger.info("InvestSmart: No transcript — trying Gemini native YouTube analysis")
+            native_prompt = f"""You are an expert Indian stock market analyst. Analyze this YouTube video about Indian stocks.
+
+VIDEO URL: {video_url}
+
+The video is from "The Wealth Magnet" channel, a popular Indian stock market analysis channel.
+The video title is: "{video_title or video_url}"
+
+Extract ALL stocks discussed, key takeaways, market commentary, and insights.
+The video is likely in Hindi/Hinglish — translate all insights to English.
+
+Return JSON in this exact format:
+{json_schema}
+
+{rules}"""
+
+            for model_name in MODELS:
+                try:
+                    logger.info(f"InvestSmart: trying native YouTube analysis with {model_name}")
+                    # Try passing the YouTube URL as a Part for native video understanding
+                    try:
+                        response = client.models.generate_content(
+                            model=model_name,
+                            contents=[
+                                genai_types.Content(
+                                    parts=[
+                                        genai_types.Part.from_uri(file_uri=video_url, mime_type="video/mp4"),
+                                        genai_types.Part.from_text(text=native_prompt),
+                                    ]
+                                )
+                            ],
+                        )
+                    except Exception as uri_err:
+                        logger.info(f"InvestSmart: native URI failed ({uri_err}), trying text-only prompt")
+                        # Fallback: just use the prompt with URL as text
+                        response = client.models.generate_content(
+                            model=model_name,
+                            contents=native_prompt,
+                        )
+                    logger.info(f"InvestSmart: success with {model_name}")
+                    break
+                except Exception as model_err:
+                    err_str = str(model_err)
+                    if any(code in err_str for code in ["429", "RESOURCE_EXHAUSTED", "503", "UNAVAILABLE", "404", "NOT_FOUND"]):
+                        logger.warning(f"InvestSmart: {model_name} unavailable, trying next...")
+                        continue
+                    raise model_err
+
+        # ── Strategy 2: Transcript-based analysis ──
+        if response is None and transcript_text:
+            logger.info("InvestSmart: Using transcript-based analysis")
+            transcript_prompt = f"""You are an expert stock market analyst. Analyze this YouTube video transcript about the Indian Stock Market.
 
 VIDEO URL: {video_url}
 TRANSCRIPT:
-{transcript_text[:25000]}  # Limit to ~25k chars to fit safely in prompt limits
+{transcript_text[:25000]}
 
-KNOWN NSE STOCKS (use these tickers when matched): {stock_list}
+Extract ALL stocks discussed, key takeaways, and market insights.
+The transcript may be in Hindi/Hinglish — translate all output to English.
 
-Return ONLY valid JSON (no markdown, no code blocks):
-{{
-  "stocks": [
-    {{
-      "symbol": "SBIN",
-      "action": "BUY",
-      "reason": "Strong chart, low PE, PSU bank darling",
-      "confidence": 0.8
-    }}
-  ],
-  "takeaways": [
-    "Index is up but most stocks are showing fatigue"
-  ],
-  "market_commentary": "Despite the index being green, breadth is weak.",
-  "insights": [
-    "PSU banks outperforming private banks since 2020"
-  ]
-}}
+Return JSON in this exact format:
+{json_schema}
 
-STRICT RULES:
-- ONLY include stocks that the speaker EXPLICITLY mentions in the transcript.
-- DO NOT guess or infer stocks — if not mentioned, don't include them.
-- For stocks mentioned but NOT in the KNOWN list, use the commonly used NSE ticker anyway.
-- action: BUY (speaker is positive), WATCH (neutral/mentioned), AVOID (negative/failed setup/warned against)
-- reason: 1 sentence summarizing what the speaker said about this stock
-- confidence: 0.8 if speaker is very strong about it, 0.6 for casual mention, 0.4 for negative
-- takeaways: 3-5 KEY takeaways from the entire video (what would a viewer remember)
-- market_commentary: 2-3 sentence summary of the overall market view expressed
-- insights: 2-3 actionable trading insights from the video
-- If you CANNOT analyze the video, return: {{"stocks":[],"takeaways":[],"market_commentary":"","insights":[],"error":"Cannot access video"}}"""
+{rules}"""
 
-        # Try multiple models in case one's quota is exhausted
-        # Free tier quota is per-model, so different models may have quota
-        MODELS = [
-            "gemini-2.5-flash",         # Latest, best quality
-            "gemini-2.5-flash-lite",    # Lighter variant
-            "gemini-2.0-flash",         # Stable
-            "gemini-2.0-flash-lite",    # Cheapest
-            "gemini-3-flash-preview",   # Preview — separate quota pool
-        ]
-        response = None
-        for model_name in MODELS:
-            try:
-                logger.info(f"InvestSmart: trying model {model_name}")
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=prompt,
-                )
-                logger.info(f"InvestSmart: success with {model_name}")
-                break
-            except Exception as model_err:
-                err_str = str(model_err)
-                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                    logger.warning(f"InvestSmart: {model_name} rate limited, trying next...")
-                    continue
-                if "503" in err_str or "UNAVAILABLE" in err_str:
-                    logger.warning(f"InvestSmart: {model_name} unavailable (503), trying next...")
-                    continue
-                if "404" in err_str or "NOT_FOUND" in err_str:
-                    logger.warning(f"InvestSmart: {model_name} not found, trying next...")
-                    continue
-                raise model_err
+            for model_name in MODELS:
+                try:
+                    logger.info(f"InvestSmart: trying transcript analysis with {model_name}")
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=transcript_prompt,
+                    )
+                    logger.info(f"InvestSmart: success with {model_name}")
+                    break
+                except Exception as model_err:
+                    err_str = str(model_err)
+                    if any(code in err_str for code in ["429", "RESOURCE_EXHAUSTED", "503", "UNAVAILABLE", "404", "NOT_FOUND"]):
+                        logger.warning(f"InvestSmart: {model_name} unavailable, trying next...")
+                        continue
+                    raise model_err
 
         if response is None:
             logger.warning("InvestSmart: all Gemini models exhausted")
@@ -486,7 +529,9 @@ STRICT RULES:
         # Check for error flag
         if parsed.get("error"):
             logger.warning(f"InvestSmart Gemini: {parsed['error']}")
-            return None
+            # Don't return None — still use whatever partial data we got
+            if not parsed.get("stocks") and not parsed.get("takeaways"):
+                return None
 
         # Validate stocks — keep non-NSE stocks too (with a flag)
         valid_stocks = []
