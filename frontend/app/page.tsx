@@ -262,8 +262,7 @@ export default function Dashboard() {
       </div>
 
       {/* 4. INVEST SMART (HUMAN INTELLIGENCE) */}
-      {brief?.invest_smart && (
-         <div className="mt-16 pt-8 border-t border-[var(--border-default)]/30">
+      <div className="mt-16 pt-8 border-t border-[var(--border-default)]/30">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
                <div>
                   <div className="flex items-center gap-3">
@@ -284,6 +283,7 @@ export default function Dashboard() {
                </button>
             </div>
             
+            {brief?.invest_smart ? (
             <div className="group relative bg-[var(--bg-card)] border border-[var(--border-default)] hover:border-[var(--accent-blue)]/40 transition-colors duration-500 rounded-3xl overflow-hidden shadow-2xl p-8 lg:p-10">
                <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent-blue)]/5 via-transparent to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
                
@@ -346,7 +346,6 @@ export default function Dashboard() {
                      </div>
 
                      {/* Stocks Discussed */}
-                     {/* Stocks Discussed */}
                      <div className="bg-[var(--bg-primary)]/30 rounded-2xl p-6 border border-[var(--border-default)]/30">
                         <h4 className="text-[10px] font-black uppercase tracking-widest text-[var(--accent-green)] mb-5 flex items-center gap-2">
                            <span className="w-4 h-px bg-[var(--accent-green)]"></span> Stocks Discussed
@@ -379,8 +378,17 @@ export default function Dashboard() {
                   </div>
                </div>
             </div>
+            ) : (
+            <div className="group relative bg-[var(--bg-card)] border border-dashed border-[var(--border-default)] rounded-3xl overflow-hidden shadow-lg p-12 lg:p-16 text-center">
+               <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent-blue)]/3 via-transparent to-transparent" />
+               <div className="relative z-10 flex flex-col items-center gap-4">
+                  <Monitor className="w-12 h-12 text-[var(--accent-blue)] opacity-40" />
+                  <p className="text-lg text-[var(--text-primary)] font-semibold">No Video Analysis Yet</p>
+                  <p className="text-sm text-[var(--text-muted)] max-w-md">Click <strong>&quot;Refresh Video&quot;</strong> above to fetch the latest YouTube market analysis from The Wealth Magnet and get AI-powered insights.</p>
+               </div>
+            </div>
+            )}
          </div>
-      )}
 
       {/* 5. SYSTEM METRICS (Footer) */}
       {(portfolio || perf) && (
