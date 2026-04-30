@@ -1,11 +1,11 @@
 import { MetadataRoute } from 'next';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://tradingxtra.vercel.app';
+  const baseUrl = 'https://tradingxtra.vercel.app';
 
   return [
     {
-      url: `${baseUrl}`,
+      url: baseUrl,
       lastModified: new Date(),
       changeFrequency: 'always',
       priority: 1,
@@ -33,6 +33,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: new Date(),
       changeFrequency: 'always',
       priority: 0.9,
+    },
+    {
+      url: `${baseUrl}/intelligence`,
+      lastModified: new Date(),
+      changeFrequency: 'hourly',
+      priority: 0.7,
     },
     {
       url: `${baseUrl}/about`,

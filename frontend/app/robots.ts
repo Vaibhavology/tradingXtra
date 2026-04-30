@@ -1,14 +1,16 @@
 import { MetadataRoute } from 'next';
 
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://tradingxtra.vercel.app';
+  const baseUrl = 'https://tradingxtra.vercel.app';
 
   return {
-    rules: {
-      userAgent: '*',
-      allow: '/',
-      disallow: ['/api/', '/_next/'],
-    },
+    rules: [
+      {
+        userAgent: '*',
+        allow: '/',
+        disallow: ['/api/', '/_next/', '/trade/'],
+      },
+    ],
     sitemap: `${baseUrl}/sitemap.xml`,
   };
 }

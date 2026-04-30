@@ -3,9 +3,17 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import { DashboardCacheProvider } from "@/lib/dashboard-cache";
 
+const SITE_URL = "https://tradingxtra.vercel.app";
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://tradingxtra.vercel.app"),
-  title: "TradingXtra – AI Trading Terminal",
+  metadataBase: new URL(SITE_URL),
+  alternates: {
+    canonical: "/",
+  },
+  title: {
+    default: "TradingXtra – AI Trading Terminal",
+    template: "%s | TradingXtra",
+  },
   description: "Quant-based trading intelligence platform with EV scoring, market brief, AI-powered stock insights, and professional trading dashboard.",
   keywords: [
     "trading app", "stock analysis", "AI trading", "quant trading", "stock prediction India",
@@ -24,7 +32,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "TradingXtra – AI Trading Terminal",
     description: "Quant-based trading intelligence platform with EV scoring, market brief, AI-powered stock insights, and professional trading dashboard.",
-    url: "https://tradingxtra.vercel.app",
+    url: SITE_URL,
     siteName: "TradingXtra",
     images: [
       {
