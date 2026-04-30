@@ -34,13 +34,78 @@ body {
 ::-webkit-scrollbar-track { background: var(--bg-primary); }
 ::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 3px; }
 
-/* Metric card shimmer */
+/* ── Skeleton Loading Animations ──────────────────────────────────── */
+
+/* Gradient sweep shimmer — light scanning across the surface */
+@keyframes skeleton-sweep {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Subtle pulse fallback */
 @keyframes shimmer {
   0% { opacity: 0.3; }
-  50% { opacity: 0.7; }
+  50% { opacity: 0.6; }
   100% { opacity: 0.3; }
 }
+
+/* Glow pulse for accent skeleton elements */
+@keyframes skeleton-glow {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.35; }
+}
+
+/* Fade-in for content appearing after skeleton */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .loading-shimmer { animation: shimmer 1.5s ease-in-out infinite; }
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-card) 0%,
+    var(--bg-card-hover) 25%,
+    rgba(37, 40, 58, 0.8) 50%,
+    var(--bg-card-hover) 75%,
+    var(--bg-card) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-sweep 1.8s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+.skeleton-text {
+  background: linear-gradient(
+    90deg,
+    rgba(37, 40, 58, 0.5) 0%,
+    rgba(37, 40, 58, 0.8) 25%,
+    rgba(52, 55, 80, 0.6) 50%,
+    rgba(37, 40, 58, 0.8) 75%,
+    rgba(37, 40, 58, 0.5) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-sweep 1.8s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+.skeleton-glow {
+  animation: skeleton-glow 2s ease-in-out infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out both;
+}
+
+/* Staggered skeleton appearance */
+.skeleton-stagger > *:nth-child(1) { animation-delay: 0s; }
+.skeleton-stagger > *:nth-child(2) { animation-delay: 0.1s; }
+.skeleton-stagger > *:nth-child(3) { animation-delay: 0.2s; }
+.skeleton-stagger > *:nth-child(4) { animation-delay: 0.3s; }
+.skeleton-stagger > *:nth-child(5) { animation-delay: 0.4s; }
+.skeleton-stagger > *:nth-child(6) { animation-delay: 0.5s; }
 
 /* Terminal Card Styles */
 .terminal-card {

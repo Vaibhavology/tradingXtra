@@ -136,11 +136,11 @@ async def scan_all():
     import asyncio
     import time
 
-    # Simple in-memory cache for scan results (60s TTL)
+    # Simple in-memory cache for scan results (5-min TTL)
     if not hasattr(scan_all, "_cache"):
         scan_all._cache = {"data": None, "ts": 0}
     
-    if scan_all._cache["data"] and time.time() - scan_all._cache["ts"] < 60:
+    if scan_all._cache["data"] and time.time() - scan_all._cache["ts"] < 300:
         return scan_all._cache["data"]
 
     results = []
@@ -211,7 +211,7 @@ async def scan_all():
         "total": len(results),
     }
     
-    # Cache for 60s
+    # Cache for 5 minutes
     scan_all._cache = {"data": response, "ts": time.time()}
     
     return response

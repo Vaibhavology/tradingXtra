@@ -44,8 +44,12 @@ export interface TradeDecision {
   decision: "ACCEPT" | "REJECT";
   regime: string;
   risk_reward: number;
+  reward_risk?: number;
   rejection_reason?: string;
   agents?: Record<string, unknown>;
+  reasoning?: string[];
+  market_bias?: string;
+  features?: Record<string, number>;
 }
 
 export interface MarketBrief {

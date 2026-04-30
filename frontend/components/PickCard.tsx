@@ -1,23 +1,137 @@
 "use client";
 import { TradeDecision } from "@/lib/api";
 import Link from "next/link";
-import { Lightbulb, AlertTriangle } from "lucide-react";
+import { Lightbulb, AlertTriangle, TrendingUp, Shield, BarChart3 } from "lucide-react";
+
+// ── Helpers to extract structured reasons & risks from backend data ──
+
+function extractReasons(pick: TradeDecision): string[] {
+  const reasons: string[] = [];
+  const agents = pick.agents as Record<string, Record<string, unknown>> | undefined;
+  const features = pick.features;
+
+  // 1. Pattern analysis (stock-specific)
+  if (agents?.pattern) {
+    const patternType = agents.pattern.type as string;
+    const patternScore = agents.pattern.score as number;
+    if (patternType && patternType !== "none" && patternType !== "unknown") {
+      const strength = patternScore >= 0.7 ? "Strong" : patternScore >= 0.5 ? "Moderate" : "Weak";
+      reasons.push(`${strength} ${formatPatternName(patternType)} pattern detected`);
+    }
+  }
+
+  // 2. Sector strength (stock-specific)
+  if (agents?.sector) {
+    const sectorScore = agents.sector.score as number;
+    const sectorName = agents.sector.sector as string || pick.sector;
+    if (sectorScore >= 0.6) {
+      reasons.push(`${sectorName} sector showing relative strength`);
+    } else if (sectorScore >= 0.45) {
+      reasons.push(`${sectorName} sector in neutral territory`);
+    }
+  }
+
+  // 3. Feature-based reasons (stock-specific scores)
+  if (features) {
+    if (features.VC >= 0.6) reasons.push("Volume confirming the move");
+    if (features.MA >= 0.6) reasons.push("Aligned with broader market trend");
+    if (features.SE >= 0.55) reasons.push("Positive sentiment from news flow");
+    if (features.LS >= 0.7) reasons.push("Strong liquidity — tight spreads");
+    if (features.MR <= 0.1) reasons.push("Clean price action — no manipulation signals");
+  }
+
+  // 4. Probability-based
+  if (pick.probability >= 0.7) {
+    reasons.push("High conviction trade (P(win) > 70%)");
+  } else if (pick.probability >= 0.6) {
+    reasons.push("Moderate conviction with positive edge");
+  }
+
+  // 5. Risk:Reward based
+  const rr = pick.reward_risk || pick.risk_reward;
+  if (rr >= 2.0) {
+    reasons.push(`Favorable R:R of ${rr.toFixed(1)}x`);
+  }
+
+  // Fallback: use backend reasoning strings directly
+  if (reasons.length === 0 && pick.reasoning && pick.reasoning.length > 0) {
+    return pick.reasoning.filter(r => !r.startsWith("⚠")).slice(0, 4);
+  }
+
+  return reasons.slice(0, 4);
+}
+
+function extractRisks(pick: TradeDecision): string[] {
+  const risks: string[] = [];
+  const agents = pick.agents as Record<string, Record<string, unknown>> | undefined;
+  const features = pick.features;
+
+  // 1. Manipulation risk (stock-specific)
+  if (agents?.manipulation) {
+    const mRisk = agents.manipulation.risk as number;
+    if (mRisk >= 0.5) {
+      risks.push("High manipulation risk in price action");
+    } else if (mRisk >= 0.3) {
+      risks.push("Moderate manipulation signals detected");
+    }
+  }
+
+  // 2. Liquidity risk (stock-specific)
+  if (agents?.liquidity) {
+    const lScore = agents.liquidity.score as number;
+    if (lScore < 0.4) {
+      risks.push("Low liquidity — wider spreads and slippage risk");
+    }
+  }
+
+  // 3. Feature-based risks
+  if (features) {
+    if (features.VC < 0.35) risks.push("Volume not confirming — weak participation");
+    if (features.SE < 0.4) risks.push("Negative news sentiment");
+    if (features.MA < 0.35) risks.push("Fighting the broader market trend");
+  }
+
+  // 4. Regime-based
+  if (pick.regime === "volatile") {
+    risks.push("Volatile market regime — wider stop needed");
+  } else if (pick.regime === "sideways") {
+    risks.push("Sideways regime — higher false breakout risk");
+  }
+
+  // 5. Conviction-based
+  if (pick.probability < 0.6) {
+    risks.push(`Lower conviction (P(win) = ${(pick.probability * 100).toFixed(0)}%)`);
+  }
+
+  // 6. Market bias headwind
+  if (pick.market_bias === "Bearish") {
+    risks.push("Bearish market bias — trading against trend");
+  }
+
+  // Fallback: use backend reasoning warnings
+  if (risks.length === 0 && pick.reasoning) {
+    const warnings = pick.reasoning.filter(r => r.startsWith("⚠"));
+    return warnings.map(w => w.replace("⚠ ", "")).slice(0, 3);
+  }
+
+  return risks.slice(0, 3);
+}
+
+function formatPatternName(pattern: string): string {
+  return pattern
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// ── Component ────────────────────────────────────────────────────────
 
 export default function PickCard({ pick }: { pick: TradeDecision }) {
   const pWin = (pick.probability * 100).toFixed(0);
-  const rr = pick.risk_reward?.toFixed(1) || "–";
+  const rr = (pick.reward_risk || pick.risk_reward)?.toFixed(1) || "–";
   const isAccept = pick.decision === "ACCEPT";
 
-  // Mock reasons and risks since they might not be fully structured in the API yet
-  const reasons = [
-    "Sector Strength",
-    pick.score > 70 ? "High Momentum" : "Value Setup"
-  ];
-  
-  const risks = [
-    "Market Volatility",
-    pick.probability < 0.6 ? "Low Conviction" : null
-  ].filter(Boolean);
+  const reasons = extractReasons(pick);
+  const risks = extractRisks(pick);
 
   return (
     <Link href={`/trade/${pick.symbol}`} className="block h-full">
@@ -81,20 +195,22 @@ export default function PickCard({ pick }: { pick: TradeDecision }) {
           </div>
         </div>
 
-        {/* Logic / Reasons */}
+        {/* Logic / Reasons — now using REAL per-stock data */}
         <div className="flex-1 space-y-4 mb-4">
-          <div>
-            <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-semibold flex items-center gap-1.5 mb-2">
-              <Lightbulb className="w-3 h-3" /> Why this trade
-            </span>
-            <ul className="space-y-1.5">
-              {reasons.map((r, i) => (
-                <li key={i} className="text-xs text-[var(--text-secondary)] flex items-start gap-1.5">
-                  <span className="text-[var(--accent-green)] mt-0.5">✔</span> {r}
-                </li>
-              ))}
-            </ul>
-          </div>
+          {reasons.length > 0 && (
+            <div>
+              <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-semibold flex items-center gap-1.5 mb-2">
+                <Lightbulb className="w-3 h-3" /> Why this trade
+              </span>
+              <ul className="space-y-1.5">
+                {reasons.map((r, i) => (
+                  <li key={i} className="text-xs text-[var(--text-secondary)] flex items-start gap-1.5">
+                    <span className="text-[var(--accent-green)] mt-0.5 shrink-0">✔</span> {r}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           
           {risks.length > 0 && (
             <div>
@@ -104,7 +220,7 @@ export default function PickCard({ pick }: { pick: TradeDecision }) {
               <ul className="space-y-1.5">
                 {risks.map((r, i) => (
                   <li key={i} className="text-xs text-[var(--text-secondary)] flex items-start gap-1.5">
-                    <span className="text-[var(--accent-red)] mt-0.5">•</span> {r}
+                    <span className="text-[var(--accent-red)] mt-0.5 shrink-0">•</span> {r}
                   </li>
                 ))}
               </ul>

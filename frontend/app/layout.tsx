@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
+import { DashboardCacheProvider } from "@/lib/dashboard-cache";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://tradingxtra.vercel.app"),
@@ -65,10 +66,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
       </head>
       <body className="antialiased min-h-screen">
-        <Navbar />
-        <main className="max-w-[1400px] mx-auto px-4 py-6">
-          {children}
-        </main>
+        <DashboardCacheProvider>
+          <Navbar />
+          <main className="max-w-[1400px] mx-auto px-4 py-6">
+            {children}
+          </main>
+        </DashboardCacheProvider>
       </body>
     </html>
   );

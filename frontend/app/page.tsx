@@ -1,10 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import {
-  getScan, getMarketBrief, getPortfolio, getPerformance, refreshInvestSmart, wakeBackend,
-  ScanResult, MarketBrief as MarketBriefType, PortfolioState, PerformanceData, TradeDecision,
-} from "@/lib/api";
+import { useState } from "react";
+import { refreshInvestSmart } from "@/lib/api";
+import { useDashboard } from "@/lib/dashboard-cache";
 import { Activity, AlertTriangle, Monitor, Globe, MapPin, RefreshCw } from "lucide-react";
 import PickCard from "@/components/PickCard";
 import PortfolioCard from "@/components/PortfolioCard";
@@ -12,13 +9,7 @@ import PerformanceCard from "@/components/PerformanceCard";
 import ChartAnalyzerCard from "@/components/ChartAnalyzerCard";
 
 export default function Dashboard() {
-  const [scan, setScan] = useState<ScanResult | null>(null);
-  const [brief, setBrief] = useState<MarketBriefType | null>(null);
-  const [portfolio, setPortfolio] = useState<PortfolioState | null>(null);
-  const [perf, setPerf] = useState<PerformanceData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [scanLoading, setScanLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { scan, brief, portfolio, perf, loading, scanLoading, error, setBrief } = useDashboard();
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
   const [refreshingInvestSmart, setRefreshingInvestSmart] = useState(false);
 
@@ -36,49 +27,6 @@ export default function Dashboard() {
       setRefreshingInvestSmart(false);
     }
   };
-
-  useEffect(() => {
-    // Wake up Render backend immediately (fights cold start)
-    wakeBackend();
-
-    // Progressive loading: show data as each API resolves
-    // Fast APIs first (market-brief, portfolio, performance)
-    // Slow API last (scan — evaluates 35 stocks)
-    async function loadFast() {
-      try {
-        const [b, p, pf] = await Promise.allSettled([
-          getMarketBrief(), getPortfolio(), getPerformance(),
-        ]);
-        if (b.status === "fulfilled") setBrief(b.value);
-        if (p.status === "fulfilled") setPortfolio(p.value);
-        if (pf.status === "fulfilled") setPerf(pf.value);
-      } catch (e) {
-        console.error("Fast load error:", e);
-      } finally {
-        setLoading(false); // Show UI as soon as fast data is ready
-      }
-    }
-
-    async function loadScan() {
-      try {
-        const s = await getScan();
-        setScan(s);
-      } catch (e) {
-        console.error("Scan load error:", e);
-      } finally {
-        setScanLoading(false);
-      }
-    }
-
-    loadFast();
-    loadScan();
-
-    const interval = setInterval(() => {
-      loadFast();
-      loadScan();
-    }, 90_000); // Refresh every 90s instead of 60s to reduce load
-    return () => clearInterval(interval);
-  }, []);
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
@@ -151,12 +99,57 @@ export default function Dashboard() {
           </div>
           
           {scanLoading ? (
-            <div className="terminal-card rounded-2xl p-16 text-center flex flex-col items-center justify-center border-dashed border-2 border-[var(--border-default)] bg-[var(--bg-card)]/50">
-              <Activity className="w-12 h-12 mb-4 opacity-60 text-[var(--accent-blue)] animate-pulse" />
-              <p className="text-xl text-[var(--text-primary)] font-medium tracking-tight">Scanning 35 Stocks...</p>
-              <p className="text-sm text-[var(--text-muted)] mt-2">Evaluating momentum, patterns & risk for the full universe</p>
-              <div className="mt-4 w-48 h-1 bg-[var(--bg-secondary)] rounded-full overflow-hidden">
-                <div className="h-full bg-[var(--accent-blue)] rounded-full animate-pulse" style={{width: '60%'}} />
+            <div className="space-y-6">
+              {/* Status bar */}
+              <div className="flex items-center gap-3 px-1">
+                <Activity className="w-5 h-5 text-[var(--accent-blue)] animate-pulse" />
+                <span className="text-sm text-[var(--text-secondary)] font-medium">Scanning 35 stocks...</span>
+                <div className="flex-1 h-1 bg-[var(--bg-secondary)] rounded-full overflow-hidden ml-2 max-w-[200px]">
+                  <div className="h-full bg-gradient-to-r from-[var(--accent-blue)] to-[var(--accent-blue)]/40 rounded-full" style={{width: '60%', animation: 'shimmer 2s ease-in-out infinite'}} />
+                </div>
+              </div>
+              {/* Skeleton pick cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 skeleton-stagger">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-card)] p-6 space-y-5">
+                    {/* Header: symbol + badge */}
+                    <div className="flex justify-between items-center">
+                      <div className="skeleton-text h-6 w-24" />
+                      <div className="skeleton h-6 w-28 rounded-md" />
+                    </div>
+                    {/* Sector label */}
+                    <div className="skeleton-text h-3 w-16" />
+                    {/* Probability bar */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <div className="skeleton-text h-3 w-14" />
+                        <div className="skeleton-text h-3 w-10" />
+                      </div>
+                      <div className="h-2 bg-[var(--bg-secondary)] rounded-full overflow-hidden">
+                        <div className="skeleton h-full rounded-full" style={{width: `${40 + i * 10}%`}} />
+                      </div>
+                    </div>
+                    {/* Price row */}
+                    <div className="grid grid-cols-3 gap-3 pt-2">
+                      {['Entry', 'SL', 'Target'].map(label => (
+                        <div key={label} className="space-y-1">
+                          <div className="skeleton-text h-2.5 w-10" />
+                          <div className="skeleton-text h-5 w-16" />
+                        </div>
+                      ))}
+                    </div>
+                    {/* Reasoning section */}
+                    <div className="space-y-2 pt-2 border-t border-[var(--border-default)]/30">
+                      <div className="skeleton-text h-3 w-full" />
+                      <div className="skeleton-text h-3 w-3/4" />
+                    </div>
+                    {/* Footer: EV */}
+                    <div className="flex justify-between items-center pt-2">
+                      <div className="skeleton-text h-5 w-20" />
+                      <div className="skeleton-text h-4 w-12" />
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ) : acceptedPicks.length > 0 ? (
@@ -522,18 +515,223 @@ export default function Dashboard() {
 
 function LoadingState() {
   return (
-    <div className="space-y-6">
-      <div className="h-6 w-40 bg-[var(--bg-card)] rounded loading-shimmer" />
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="h-48 bg-[var(--bg-card)] rounded-lg loading-shimmer border border-[var(--border-default)]" />
-        ))}
+    <div className="space-y-12 max-w-[1600px] mx-auto pb-16">
+
+      {/* ── 1. MARKET STATE HERO SKELETON ─────────────────────────── */}
+      <div className="relative overflow-hidden rounded-3xl border border-[var(--border-default)] bg-[var(--bg-card)] p-8 lg:p-12">
+        {/* Ambient glow */}
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full bg-[var(--text-muted)] blur-[120px] opacity-[0.06] skeleton-glow" />
+
+        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
+          <div className="space-y-5 flex-1">
+            {/* Label */}
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 rounded-full skeleton" />
+              <div className="skeleton-text h-3 w-28" />
+            </div>
+            {/* Big headline */}
+            <div className="skeleton-text h-14 w-72 md:w-96 rounded-xl" />
+            {/* Subtitle */}
+            <div className="space-y-2">
+              <div className="skeleton-text h-5 w-full max-w-lg" />
+              <div className="skeleton-text h-5 w-3/4 max-w-md" />
+            </div>
+          </div>
+          {/* System status box */}
+          <div className="bg-[var(--bg-primary)]/80 p-4 rounded-xl border border-[var(--border-default)] w-36 space-y-3">
+            <div className="skeleton-text h-2.5 w-20" />
+            <div className="flex gap-3">
+              <div className="space-y-1">
+                <div className="skeleton-text h-5 w-8" />
+                <div className="skeleton-text h-2 w-12" />
+              </div>
+              <div className="w-px bg-[var(--border-default)]" />
+              <div className="space-y-1">
+                <div className="skeleton-text h-5 w-6" />
+                <div className="skeleton-text h-2 w-8" />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {[1, 2, 3, 4].map(i => (
-          <div key={i} className="h-36 bg-[var(--bg-card)] rounded-lg loading-shimmer border border-[var(--border-default)]" />
-        ))}
+
+      {/* ── 2. MAIN GRID (Picks + Risk) ──────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+
+        {/* LEFT: Actionable Opportunities */}
+        <div className="lg:col-span-8 space-y-6">
+          {/* Section header */}
+          <div className="border-b border-[var(--border-default)]/50 pb-4 space-y-2">
+            <div className="skeleton-text h-7 w-64" />
+            <div className="skeleton-text h-3 w-40" />
+          </div>
+          {/* Skeleton pick cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 skeleton-stagger">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-card)] p-6 space-y-5">
+                <div className="flex justify-between items-center">
+                  <div className="skeleton-text h-6 w-24" />
+                  <div className="skeleton h-6 w-28 rounded-md" />
+                </div>
+                <div className="skeleton-text h-3 w-16" />
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <div className="skeleton-text h-3 w-14" />
+                    <div className="skeleton-text h-3 w-10" />
+                  </div>
+                  <div className="h-2 bg-[var(--bg-secondary)] rounded-full overflow-hidden">
+                    <div className="skeleton h-full rounded-full" style={{width: `${40 + i * 12}%`}} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3 pt-2">
+                  {[1, 2, 3].map(j => (
+                    <div key={j} className="space-y-1">
+                      <div className="skeleton-text h-2.5 w-10" />
+                      <div className="skeleton-text h-5 w-16" />
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-2 pt-2 border-t border-[var(--border-default)]/30">
+                  <div className="skeleton-text h-3 w-full" />
+                  <div className="skeleton-text h-3 w-2/3" />
+                </div>
+                <div className="flex justify-between items-center pt-2">
+                  <div className="skeleton-text h-5 w-20" />
+                  <div className="skeleton-text h-4 w-12" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* RIGHT: Risk Context */}
+        <div className="lg:col-span-4 space-y-6">
+          {/* Section header */}
+          <div className="border-b border-[var(--border-default)]/50 pb-4 space-y-2">
+            <div className="skeleton-text h-7 w-36" />
+            <div className="skeleton-text h-3 w-32" />
+          </div>
+
+          {/* Alert box skeleton */}
+          <div className="bg-red-500/5 border border-red-500/10 rounded-2xl p-6 space-y-4">
+            <div className="flex justify-between items-center">
+              <div className="skeleton-text h-3 w-28" />
+              <div className="skeleton h-5 w-16 rounded-md" />
+            </div>
+            <div className="space-y-3">
+              <div className="skeleton-text h-4 w-full" />
+              <div className="skeleton-text h-4 w-5/6" />
+              <div className="skeleton-text h-4 w-4/6" />
+            </div>
+          </div>
+
+          {/* Volatility + Sectors */}
+          <div className="grid grid-cols-2 gap-5">
+            <div className="bg-[var(--bg-card)] border border-[var(--border-default)] rounded-2xl p-6 space-y-3">
+              <div className="skeleton-text h-2.5 w-16" />
+              <div className="skeleton-text h-9 w-16" />
+              <div className="skeleton-text h-2 w-14" />
+            </div>
+            <div className="bg-[var(--bg-card)] border border-[var(--border-default)] rounded-2xl p-6 space-y-3">
+              <div className="skeleton-text h-2.5 w-20" />
+              <div className="mt-3 space-y-2">
+                <div className="skeleton h-6 w-14 rounded" />
+                <div className="skeleton h-6 w-12 rounded" />
+              </div>
+            </div>
+          </div>
+
+          {/* Chart Analyzer skeleton */}
+          <div className="bg-[var(--bg-card)] border border-[var(--border-default)] rounded-2xl p-6 space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="skeleton h-5 w-5 rounded" />
+              <div className="skeleton-text h-4 w-28" />
+            </div>
+            <div className="skeleton-text h-3 w-full" />
+            <div className="skeleton h-10 w-full rounded-lg mt-2" />
+          </div>
+        </div>
       </div>
+
+      {/* ── 3. INVEST SMART SKELETON ─────────────────────────────── */}
+      <div className="mt-16 pt-8 border-t border-[var(--border-default)]/30">
+        {/* Header */}
+        <div className="flex items-end justify-between mb-8">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="skeleton h-8 w-8 rounded-lg" />
+              <div className="skeleton-text h-7 w-40" />
+            </div>
+            <div className="skeleton-text h-3 w-52 ml-11" />
+          </div>
+          <div className="skeleton h-9 w-36 rounded-xl" />
+        </div>
+        {/* Content card */}
+        <div className="bg-[var(--bg-card)] border border-[var(--border-default)] rounded-3xl p-8 lg:p-10">
+          <div className="flex flex-col xl:flex-row gap-10">
+            <div className="xl:w-1/3 space-y-5">
+              <div className="skeleton-text h-7 w-full" />
+              <div className="skeleton-text h-5 w-4/5" />
+              <div className="bg-[var(--bg-primary)]/50 p-5 rounded-2xl border border-[var(--border-default)]/50 space-y-2">
+                <div className="skeleton-text h-3 w-full" />
+                <div className="skeleton-text h-3 w-full" />
+                <div className="skeleton-text h-3 w-2/3" />
+              </div>
+            </div>
+            <div className="xl:w-2/3 grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-6">
+                <div className="skeleton-text h-3 w-28" />
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="skeleton-text h-4 w-full" />
+                ))}
+                <div className="skeleton-text h-3 w-32 mt-6" />
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="skeleton-text h-4 w-full" />
+                ))}
+              </div>
+              <div className="bg-[var(--bg-primary)]/30 rounded-2xl p-6 border border-[var(--border-default)]/30 space-y-4">
+                <div className="skeleton-text h-3 w-28" />
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className="bg-[var(--bg-card)] p-4 rounded-xl border border-[var(--border-default)] space-y-2">
+                    <div className="flex justify-between">
+                      <div className="skeleton-text h-4 w-16" />
+                      <div className="skeleton h-5 w-12 rounded-md" />
+                    </div>
+                    <div className="skeleton-text h-3 w-full" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 4. PORTFOLIO + PERFORMANCE SKELETON ──────────────────── */}
+      <div className="mt-16 pt-8 border-t border-[var(--border-default)]/30 flex flex-col lg:flex-row gap-6 opacity-50">
+        <div className="lg:w-1/2 bg-[var(--bg-card)] border border-[var(--border-default)] rounded-2xl p-6 space-y-4">
+          <div className="skeleton-text h-5 w-24" />
+          <div className="grid grid-cols-2 gap-4">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="space-y-1">
+                <div className="skeleton-text h-2.5 w-16" />
+                <div className="skeleton-text h-6 w-20" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="lg:w-1/2 bg-[var(--bg-card)] border border-[var(--border-default)] rounded-2xl p-6 space-y-4">
+          <div className="skeleton-text h-5 w-28" />
+          <div className="grid grid-cols-2 gap-4">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="space-y-1">
+                <div className="skeleton-text h-2.5 w-16" />
+                <div className="skeleton-text h-6 w-20" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 }
