@@ -86,9 +86,26 @@ async def get_decision(
         False,
         description="If true, auto-record ACCEPT decisions to trade journal",
     ),
+    fresh: bool = Query(
+        False,
+        description="If true, bypass cache and force fresh evaluation",
+    ),
 ):
-    """Evaluate a single stock through the decision pipeline."""
+    """Evaluate a single stock. Uses cache when available (<5ms)."""
     try:
+        from app.services.evaluation_cache import get_cached_result, store_result
+
+        # Check cache first (unless fresh=True)
+        if not fresh:
+            cached = get_cached_result(symbol)
+            if cached:
+                logger.info(f"[{symbol}] Serving cached result")
+                if record and cached.get("decision") == "ACCEPT":
+                    from app.services.trade_monitor import create_trade
+                    cached["trade_recorded"] = create_trade(cached)
+                return cached
+
+        # Cache miss — live evaluation
         result = evaluate(symbol)
 
         if result.get("decision") == "NO_DATA":
@@ -99,6 +116,9 @@ async def get_decision(
                     f"No data available for {symbol}",
                 ),
             )
+
+        # Store to cache for future requests
+        store_result(symbol, result)
 
         # Phase 3: auto-record accepted trades
         if record and result.get("decision") == "ACCEPT":
@@ -123,98 +143,58 @@ async def get_decision(
     response_model=ScanResult,
     summary="Scan all stocks in the universe",
     description=(
-        "Evaluates every stock in the 35-stock NSE universe.\n"
-        "Results are sorted: ACCEPTed stocks first (by EV descending), "
-        "then REJECTed stocks.\n\n"
-        "⚠️ First call with an empty database will trigger data fetch "
-        "for all stocks — this may take 2-3 minutes."
+        "Returns pre-computed evaluation results for all tracked stocks.\n"
+        "Results are computed in background (batch + incremental refresh)\n"
+        "and served from cache in <50ms.\n\n"
+        "If cache is empty (first startup), triggers a background batch\n"
+        "and returns partial/empty results."
     ),
 )
 async def scan_all():
-    """Scan all stocks and return ranked results. Cached for 60s."""
-    from app.data_fetcher import NSE_STOCKS
-    import asyncio
-    import time
+    """Serve pre-computed scan results from cache. <50ms response."""
+    from app.services.evaluation_cache import get_cached_scan, get_all_db_results
 
-    # Simple in-memory cache for scan results (5-min TTL)
-    if not hasattr(scan_all, "_cache"):
-        scan_all._cache = {"data": None, "ts": 0}
-    
-    if scan_all._cache["data"] and time.time() - scan_all._cache["ts"] < 300:
-        return scan_all._cache["data"]
+    # Tier 1: Memory cache (< 1ms)
+    cached = get_cached_scan()
+    if cached:
+        return cached
 
-    results = []
-    accepted = 0
-    rejected = 0
+    # Tier 2: Rebuild from DB (accept up to 4 hours old)
+    db_results = get_all_db_results(max_age_min=240)
+    if db_results and len(db_results) > 5:
+        accepted = sum(1 for r in db_results if r.get("decision") == "ACCEPT")
+        rejected = len(db_results) - accepted
 
-    loop = asyncio.get_running_loop()
-    
-    # Run all evaluates concurrently with allow_stale=True
-    tasks = [
-        loop.run_in_executor(None, evaluate, symbol, True)  # True = allow_stale
-        for symbol in NSE_STOCKS
-    ]
-    
-    # 45-second timeout — return whatever we have
-    try:
-        evaluated = await asyncio.wait_for(
-            asyncio.gather(*tasks, return_exceptions=True),
-            timeout=45.0
-        )
-    except asyncio.TimeoutError:
-        logger.warning("Scan timed out after 45s — returning partial results")
-        # Gather completed results
-        evaluated = []
-        for t in tasks:
-            if t.done():
-                evaluated.append(t.result())
-            else:
-                t.cancel()
+        def sort_key(r):
+            priority = {"ACCEPT": 0, "REJECT": 1, "ERROR": 2, "NO_DATA": 3}
+            return (priority.get(r.get("decision", "ERROR"), 9), -(r.get("ev", 0) or 0))
 
-    for symbol, result in zip(NSE_STOCKS.keys(), evaluated):
-        if isinstance(result, Exception):
-            logger.error(f"Scan failed for {symbol}: {result}")
-            results.append({
-                "symbol": symbol,
-                "name": NSE_STOCKS[symbol]["name"],
-                "sector": NSE_STOCKS[symbol]["sector"],
-                "score": 0.0,
-                "probability": 0.0,
-                "ev": 0.0,
-                "entry": 0.0,
-                "stop_loss": 0.0,
-                "target": 0.0,
-                "decision": "ERROR",
-                "rejection_reason": str(result),
-                "features": {},
-                "data_points": 0,
-            })
-            rejected += 1
-        else:
-            results.append(result)
-            if result.get("decision") == "ACCEPT":
-                accepted += 1
-            else:
-                rejected += 1
+        db_results.sort(key=sort_key)
 
-    # Sort: ACCEPT first (by EV desc), then REJECT, then ERROR
-    def sort_key(r):
-        priority = {"ACCEPT": 0, "REJECT": 1, "ERROR": 2, "NO_DATA": 3}
-        return (priority.get(r.get("decision", "ERROR"), 9), -(r.get("ev", 0) or 0))
+        return {
+            "results": db_results,
+            "accepted": accepted,
+            "rejected": rejected,
+            "total": len(db_results),
+        }
 
-    results.sort(key=sort_key)
+    # Tier 3: Nothing cached — trigger background batch, return empty
+    import threading
+    from app.services.batch_evaluator import full_batch, get_batch_status
 
-    response = {
-        "results": results,
-        "accepted": accepted,
-        "rejected": rejected,
-        "total": len(results),
+    status = get_batch_status()
+    if not status["running"]:
+        thread = threading.Thread(target=full_batch, daemon=True, name="scan-batch")
+        thread.start()
+
+    return {
+        "results": [],
+        "accepted": 0,
+        "rejected": 0,
+        "total": 0,
+        "_loading": True,
+        "_message": "First scan in progress. Refresh in 30-60 seconds.",
     }
-    
-    # Cache for 5 minutes
-    scan_all._cache = {"data": response, "ts": time.time()}
-    
-    return response
 
 
 @router.get(

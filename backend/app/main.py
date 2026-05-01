@@ -70,13 +70,18 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"✗ Preload failed to start: {e}")
 
-    # 3. Start scheduler for periodic refresh + trade monitor
+    # 3. Start scheduler for periodic refresh + trade monitor + batch evaluator
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
         from app.data_fetcher import refresh_all_stocks
         from app.services.trade_monitor import check_open_trades
+        from app.services.batch_evaluator import (
+            full_batch, incremental_refresh, priority_refresh,
+        )
 
         _scheduler = BackgroundScheduler()
+
+        # Data refresh (OHLCV prices from yfinance)
         _scheduler.add_job(
             refresh_all_stocks,
             "interval",
@@ -84,6 +89,8 @@ async def lifespan(app: FastAPI):
             id="ohlcv_refresh",
             max_instances=1,
         )
+
+        # Trade monitor (check SL/target hits)
         _scheduler.add_job(
             check_open_trades,
             "interval",
@@ -91,12 +98,53 @@ async def lifespan(app: FastAPI):
             id="trade_monitor",
             max_instances=1,
         )
+
+        # Batch evaluator: incremental refresh every 15 min
+        _scheduler.add_job(
+            incremental_refresh,
+            "interval",
+            minutes=15,
+            id="eval_incremental",
+            max_instances=1,
+            kwargs={"max_stocks": 50},
+        )
+
+        # Batch evaluator: priority refresh every 5 min
+        _scheduler.add_job(
+            priority_refresh,
+            "interval",
+            minutes=5,
+            id="eval_priority",
+            max_instances=1,
+        )
+
         _scheduler.start()
-        logger.info("✓ Scheduler started (15-min data + 5-min trade monitor)")
+        logger.info("✓ Scheduler started (data + trades + batch evaluator)")
     except ImportError:
         logger.warning("✗ APScheduler not installed — auto-refresh disabled")
     except Exception as e:
         logger.warning(f"✗ Scheduler failed: {e}")
+
+    # 4. Startup batch evaluation (after data preload settles)
+    def _startup_batch():
+        """Wait for initial data preload, then evaluate all stocks."""
+        import time
+        logger.info("Startup batch: waiting 60s for data preload...")
+        time.sleep(60)  # Let data preload get ahead
+        logger.info("Startup batch: beginning full evaluation...")
+        full_batch()
+
+    try:
+        from app.services.batch_evaluator import full_batch
+        batch_thread = threading.Thread(
+            target=_startup_batch,
+            daemon=True,
+            name="startup-batch",
+        )
+        batch_thread.start()
+        logger.info("✓ Startup batch evaluation scheduled (starts in 60s)")
+    except Exception as e:
+        logger.warning(f"✗ Startup batch failed to schedule: {e}")
 
     logger.info("")
     logger.info("  Phase 4 Endpoints:")
@@ -112,6 +160,13 @@ async def lifespan(app: FastAPI):
     yield
 
     # ── SHUTDOWN ──
+    # Signal data fetcher threads to stop first
+    try:
+        from app.data_fetcher import shutdown_fetcher
+        shutdown_fetcher()
+    except Exception as e:
+        logger.warning(f"Data fetcher shutdown error: {e}")
+
     if _scheduler:
         _scheduler.shutdown(wait=False)
     logger.info("TradingXtra shutting down")
@@ -213,11 +268,21 @@ async def system_status():
     return {
         "server": "running",
         "preload": preload,
+        "batch_evaluator": _get_batch_status_safe(),
         "database": {
             "total_rows": total_rows,
             "symbols_tracked": symbol_count,
         },
     }
+
+
+def _get_batch_status_safe():
+    """Get batch evaluator status without crashing if not available."""
+    try:
+        from app.services.batch_evaluator import get_batch_status
+        return get_batch_status()
+    except Exception:
+        return {"status": "unavailable"}
 
 
 @app.post("/api/backfill", tags=["Admin"])

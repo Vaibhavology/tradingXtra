@@ -23,47 +23,13 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, OHLCVData, FetchTracker
 
+from app.services.stock_screener import FULL_UNIVERSE
+
 logger = logging.getLogger(__name__)
 
 
-# ── Stock Universe ───────────────────────────────────────────────────
-NSE_STOCKS: Dict[str, Dict] = {
-    "RELIANCE":   {"name": "Reliance Industries",      "sector": "Energy"},
-    "TCS":        {"name": "Tata Consultancy Services", "sector": "IT"},
-    "HDFCBANK":   {"name": "HDFC Bank",                 "sector": "Banking"},
-    "INFY":       {"name": "Infosys",                   "sector": "IT"},
-    "ICICIBANK":  {"name": "ICICI Bank",                "sector": "Banking"},
-    "HINDUNILVR": {"name": "Hindustan Unilever",        "sector": "FMCG"},
-    "SBIN":       {"name": "State Bank of India",       "sector": "PSU Banks"},
-    "BHARTIARTL": {"name": "Bharti Airtel",             "sector": "Telecom"},
-    "KOTAKBANK":  {"name": "Kotak Mahindra Bank",       "sector": "Banking"},
-    "LT":         {"name": "Larsen & Toubro",           "sector": "Infrastructure"},
-    "HCLTECH":    {"name": "HCL Technologies",          "sector": "IT"},
-    "AXISBANK":   {"name": "Axis Bank",                 "sector": "Banking"},
-    "TATAMOTOR":  {"name": "Tata Motors",               "sector": "Auto"},
-    "SUNPHARMA":  {"name": "Sun Pharma",                "sector": "Pharma"},
-    "WIPRO":      {"name": "Wipro",                     "sector": "IT"},
-    "MARUTI":     {"name": "Maruti Suzuki",             "sector": "Auto"},
-    "TATASTEEL":  {"name": "Tata Steel",                "sector": "Metals"},
-    "NTPC":       {"name": "NTPC",                      "sector": "Energy"},
-    "POWERGRID":  {"name": "Power Grid Corp",           "sector": "Energy"},
-    "HINDALCO":   {"name": "Hindalco",                  "sector": "Metals"},
-    "JSWSTEEL":   {"name": "JSW Steel",                 "sector": "Metals"},
-    "ADANIENT":   {"name": "Adani Enterprises",         "sector": "Conglomerate"},
-    "COALINDIA":  {"name": "Coal India",                "sector": "Mining"},
-    "ONGC":       {"name": "ONGC",                      "sector": "Energy"},
-    "BPCL":       {"name": "BPCL",                      "sector": "Energy"},
-    "CIPLA":      {"name": "Cipla",                     "sector": "Pharma"},
-    "DRREDDY":    {"name": "Dr. Reddy's",               "sector": "Pharma"},
-    "DIVISLAB":   {"name": "Divi's Labs",               "sector": "Pharma"},
-    "HEROMOTOCO": {"name": "Hero MotoCorp",             "sector": "Auto"},
-    "BAJFINANCE": {"name": "Bajaj Finance",             "sector": "NBFC"},
-    "M&M":        {"name": "Mahindra & Mahindra",       "sector": "Auto"},
-    "TECHM":      {"name": "Tech Mahindra",             "sector": "IT"},
-    "HAL":        {"name": "Hindustan Aeronautics",     "sector": "Defence"},
-    "BEL":        {"name": "Bharat Electronics",        "sector": "Defence"},
-    "VEDL":       {"name": "Vedanta",                   "sector": "Metals"},
-}
+# ── Stock Universe (sourced from dynamic screener — 200+ stocks) ─────
+NSE_STOCKS = FULL_UNIVERSE
 
 MARKET_TICKERS: Dict[str, str] = {
     "NIFTY50":  "^NSEI",
@@ -84,6 +50,9 @@ _FETCH_TIMEOUT = 30  # seconds per symbol
 # Preload status (for /api/status endpoint)
 _preload_complete = False
 _preload_progress = {"done": 0, "total": 0, "errors": 0}
+
+# Shutdown flag — signals preload/refresh threads to stop
+_shutdown_event = threading.Event()
 
 
 # ── Ticker Resolution ───────────────────────────────────────────────
@@ -345,6 +314,11 @@ def preload_all_stocks():
     logger.info("=" * 55)
 
     for i, symbol in enumerate(all_symbols, 1):
+        # Check if shutdown was requested
+        if _shutdown_event.is_set():
+            logger.info(f"  Preload cancelled at {i}/{len(all_symbols)} (shutdown)")
+            return
+
         try:
             if _is_fetch_fresh(symbol, max_age_minutes=60):
                 # Already fresh in DB — just load into memory cache
@@ -382,13 +356,17 @@ def refresh_all_stocks():
     Called by APScheduler every 15 minutes.
     Updates both DB and memory cache.
     """
+    if _shutdown_event.is_set():
+        return
+
     logger.info("Scheduled refresh starting...")
     errors = 0
 
     for name in MARKET_TICKERS:
+        if _shutdown_event.is_set():
+            return
         try:
             fetch_and_store(name, period="5d")
-            # Reload into cache
             data = get_stock_data(name, days=120)
             _set_cache(name, data)
         except Exception as e:
@@ -397,6 +375,8 @@ def refresh_all_stocks():
         time.sleep(0.3)
 
     for symbol in NSE_STOCKS:
+        if _shutdown_event.is_set():
+            return
         try:
             fetch_and_store(symbol, period="5d")
             data = get_stock_data(symbol, days=120)
@@ -423,3 +403,11 @@ def get_preload_status() -> Dict:
         "progress": _preload_progress,
         "cache_size": len(_data_cache),
     }
+
+
+def shutdown_fetcher():
+    """Signal all background threads to stop and shut down the thread pool."""
+    logger.info("Shutting down data fetcher...")
+    _shutdown_event.set()
+    _fetch_pool.shutdown(wait=False)
+    logger.info("Data fetcher shut down complete")

@@ -1,9 +1,10 @@
 """
-FINAL DECISION ENGINE — Live Data Edition
-Fetches real NSE data via Yahoo Finance, then applies all momentum gates.
+FINAL DECISION ENGINE — Dynamic Screening Edition
+Scans 200+ NSE stocks for trending candidates, then applies all momentum gates.
 
 Decision Flow:
-  Live Data → Momentum Gate → Volume Gate → Sector Gate →
+  Dynamic Screen (200+ stocks) → Trending Candidates (~60-80) →
+  Momentum Gate → Volume Gate → Sector Gate →
   Manipulation Filter → Twitter Confirmation → Risk Rules → Rank → Top 10
 """
 
@@ -19,6 +20,7 @@ from app.services.sector import SectorService
 from app.services.twitter_scout import TwitterScout
 from app.services.manipulation import ManipulationFilter
 from app.services.risk_rules import RiskRules
+from app.services.stock_screener import StockScreener
 from app.services import data_cache
 
 logger = logging.getLogger(__name__)
@@ -28,6 +30,7 @@ class DecisionEngine:
 
     def __init__(self):
         self.market_data   = MarketDataService()
+        self.screener      = StockScreener()
         self.momentum_svc  = MomentumService()
         self.volume_svc    = VolumeService()
         self.sector_svc    = SectorService()
@@ -70,7 +73,8 @@ class DecisionEngine:
 
     def get_debug_output(self) -> Dict:
         """Full evaluation trace — internal use only, not exposed to frontend"""
-        stocks        = self.market_data.fetch_all_stocks()
+        trending      = self.screener.scan_trending(top_n=80)
+        stocks        = self.market_data.fetch_all_stocks(pre_screened=trending)
         mkt           = self.market_data.fetch_market_status()
         sector_returns = self.market_data.fetch_sector_returns(mkt["nifty_return_7d"])
         evaluations   = [self._evaluate(s, mkt, sector_returns) for s in stocks]
@@ -86,15 +90,16 @@ class DecisionEngine:
     # ── pipeline ──────────────────────────────────────────────────────────────
 
     def _run_pipeline(self) -> Dict:
-        logger.info("Decision Engine: fetching live data…")
+        logger.info("Decision Engine: scanning 200+ stocks for trending candidates…")
 
-        # 1. Fetch live data
-        stocks         = self.market_data.fetch_all_stocks()
+        # 1. Dynamic screen — scan full universe for trending stocks
+        trending       = self.screener.scan_trending(top_n=80)
+        stocks         = self.market_data.fetch_all_stocks(pre_screened=trending)
         mkt            = self.market_data.fetch_market_status()
         sector_returns = self.market_data.fetch_sector_returns(mkt["nifty_return_7d"])
         twitter_raw    = self.market_data.fetch_twitter_signals()
 
-        logger.info(f"Fetched {len(stocks)} stocks")
+        logger.info(f"Evaluating {len(stocks)} trending candidates (from 200+ scanned)")
 
         # 2. Evaluate every stock through all gates
         evaluations = [self._evaluate(s, mkt, sector_returns) for s in stocks]
@@ -122,6 +127,7 @@ class DecisionEngine:
             "market_regime":         "bullish" if mkt["nifty"]["change"] >= 0 else "bearish",
             "top_sector":            top_sector,
             "picks":                 picks,
+            "total_universe_scanned": len(self.screener.universe),
             "total_candidates":      len(stocks),
             "passed_momentum_gate":  passed_momentum,
             "passed_volume_gate":    passed_volume,

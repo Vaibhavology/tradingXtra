@@ -2,6 +2,9 @@
 Live Market Data Service — Yahoo Finance (NSE)
 Fetches real OHLCV data for NSE-listed stocks and indices.
 Data is end-of-day / 15-min delayed (free tier).
+
+Now uses the dynamic StockScreener universe (200+ stocks) instead of
+a small hardcoded list.
 """
 
 import yfinance as yf
@@ -10,70 +13,45 @@ from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 import logging
 
+from app.services.stock_screener import FULL_UNIVERSE
+
 logger = logging.getLogger(__name__)
 
-# ── NSE symbol universe ──────────────────────────────────────────────────────
-# Format: Yahoo Finance uses "<SYMBOL>.NS" for NSE stocks
+# ── Stock Universe — now sourced from screener (200+ stocks) ─────────────────
+STOCK_UNIVERSE = FULL_UNIVERSE  # backward compat alias
 
-STOCK_UNIVERSE: Dict[str, Dict] = {
-    # Metals
-    "HINDZINC":   {"name": "Hindustan Zinc",        "sector": "Metals"},
-    "VEDL":       {"name": "Vedanta Ltd",            "sector": "Metals"},
-    "JSWSTEEL":   {"name": "JSW Steel",              "sector": "Metals"},
-    "TATASTEEL":  {"name": "Tata Steel",             "sector": "Metals"},
-    "HINDALCO":   {"name": "Hindalco Industries",    "sector": "Metals"},
-    "NATIONALUM": {"name": "National Aluminium",     "sector": "Metals"},
-    # Defence
-    "HAL":        {"name": "Hindustan Aeronautics",  "sector": "Defence"},
-    "BEL":        {"name": "Bharat Electronics",     "sector": "Defence"},
-    "BHEL":       {"name": "Bharat Heavy Electricals","sector": "Defence"},
-    "COCHINSHIP": {"name": "Cochin Shipyard",        "sector": "Defence"},
-    # Energy / PSU
-    "COALINDIA":  {"name": "Coal India",             "sector": "Energy"},
-    "ONGC":       {"name": "ONGC",                   "sector": "Energy"},
-    "NTPC":       {"name": "NTPC",                   "sector": "Energy"},
-    "POWERGRID":  {"name": "Power Grid Corp",        "sector": "Energy"},
-    "ADANIPOWER": {"name": "Adani Power",            "sector": "Energy"},
-    # PSU Banks
-    "SBIN":       {"name": "State Bank of India",    "sector": "PSU Banks"},
-    "PNB":        {"name": "Punjab National Bank",   "sector": "PSU Banks"},
-    "BANKBARODA": {"name": "Bank of Baroda",         "sector": "PSU Banks"},
-    "CANBK":      {"name": "Canara Bank",            "sector": "PSU Banks"},
-    # Infrastructure
-    "IRFC":       {"name": "Indian Railway Finance", "sector": "Infrastructure"},
-    "RECLTD":     {"name": "REC Limited",            "sector": "Infrastructure"},
-    "PFC":        {"name": "Power Finance Corp",     "sector": "Infrastructure"},
-    "LT":         {"name": "Larsen & Toubro",        "sector": "Infrastructure"},
-    # Auto (TATAMOTORS not available on Yahoo Finance NSE feed)
-    "MARUTI":     {"name": "Maruti Suzuki",          "sector": "Auto"},
-    "M&M":        {"name": "Mahindra & Mahindra",    "sector": "Auto"},
-    "BAJAJ-AUTO": {"name": "Bajaj Auto",             "sector": "Auto"},
-    "EICHERMOT":  {"name": "Eicher Motors",          "sector": "Auto"},
-    # Private Banks
-    "HDFCBANK":   {"name": "HDFC Bank",              "sector": "Banking"},
-    "ICICIBANK":  {"name": "ICICI Bank",             "sector": "Banking"},
-    "AXISBANK":   {"name": "Axis Bank",              "sector": "Banking"},
-    "KOTAKBANK":  {"name": "Kotak Mahindra Bank",    "sector": "Banking"},
-    # IT
-    "INFY":       {"name": "Infosys",                "sector": "IT"},
-    "TCS":        {"name": "TCS",                    "sector": "IT"},
-    "WIPRO":      {"name": "Wipro",                  "sector": "IT"},
-    # Pharma
-    "SUNPHARMA":  {"name": "Sun Pharma",             "sector": "Pharma"},
-    "DRREDDY":    {"name": "Dr Reddy's",             "sector": "Pharma"},
-}
-
-# Sector index proxies (Yahoo Finance tickers)
+# Sector index proxies (Yahoo Finance tickers) — expanded for new sectors
 SECTOR_INDICES: Dict[str, str] = {
-    "Metals":         "^CNXMETAL",
-    "Defence":        "^CNXPSE",      # PSE index — covers HAL, BEL, BHEL, defence PSUs
-    "Energy":         "^CNXENERGY",
-    "PSU Banks":      "^CNXPSUBANK",
-    "Infrastructure": "^CNXINFRA",
-    "Auto":           "^CNXAUTO",
-    "Banking":        "^NSEBANK",
-    "IT":             "^CNXIT",
-    "Pharma":         "^CNXPHARMA",
+    "Metals":           "^CNXMETAL",
+    "Defence":          "^CNXPSE",
+    "Energy":           "^CNXENERGY",
+    "PSU Banks":        "^CNXPSUBANK",
+    "Infrastructure":   "^CNXINFRA",
+    "Auto":             "^CNXAUTO",
+    "Banking":          "^NSEBANK",
+    "IT":               "^CNXIT",
+    "Pharma":           "^CNXPHARMA",
+    "FMCG":             "^CNXFMCG",
+    "Cement":           "^CNXINFRA",      # proxy
+    "Real Estate":      "^CNXREALTY",
+    "Consumer Durables":"^CNXFMCG",       # proxy
+    "NBFC":             "^CNXFINANCE",
+    "Insurance":        "^CNXFINANCE",    # proxy
+    "Chemicals":        "^CNXPSE",        # proxy
+    "Capital Goods":    "^CNXINFRA",      # proxy
+    "Healthcare":       "^CNXPHARMA",     # proxy
+    "Telecom":          "^CNXIT",         # proxy
+    "Consumer Tech":    "^CNXIT",         # proxy
+    "Retail":           "^CNXFMCG",       # proxy
+    "Renewable Energy": "^CNXENERGY",     # proxy
+    "Mining":           "^CNXMETAL",      # proxy
+    "Conglomerate":     "^NSEI",          # proxy — use NIFTY
+    "Agrochemicals":    "^CNXPSE",        # proxy
+    "Electronics":      "^CNXIT",         # proxy
+    "Aviation":         "^CNXINFRA",      # proxy
+    "Logistics":        "^CNXINFRA",      # proxy
+    "Hospitality":      "^CNXFMCG",       # proxy
+    "Media":            "^CNXFMCG",       # proxy
 }
 
 NIFTY_TICKER = "^NSEI"
@@ -151,13 +129,25 @@ class MarketDataService:
             logger.error(f"{symbol} fetch error: {e}")
             return None
 
-    def fetch_all_stocks(self) -> List[Dict]:
-        """Fetch all stocks in the universe. Uses batch download for speed."""
+    def fetch_all_stocks(self, pre_screened: Optional[List[Dict]] = None) -> List[Dict]:
+        """
+        Fetch all stocks for the decision engine.
+
+        If pre_screened candidates are provided (from StockScreener),
+        use them directly — they already have price/volume data.
+        Otherwise fall back to batch downloading the full universe.
+        """
+        if pre_screened:
+            logger.info(
+                f"Using {len(pre_screened)} pre-screened trending candidates"
+            )
+            return pre_screened
+
+        # Fallback: batch download full universe (slower, used if screener fails)
         symbols = list(STOCK_UNIVERSE.keys())
         yf_symbols = [self._yf_symbol(s) for s in symbols]
 
         try:
-            # Batch download — much faster than individual calls
             raw = yf.download(
                 yf_symbols,
                 period="30d",
