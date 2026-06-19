@@ -31,6 +31,8 @@ def _resolve_database_url() -> str:
         "DATABASE_URL",
         "postgresql://postgres:postgres@localhost:54322/postgres",
     )
+    if url:
+        url = url.strip()
     try:
         parts = url.split("@")
         if len(parts) > 1:
