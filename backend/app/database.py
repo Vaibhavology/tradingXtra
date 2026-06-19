@@ -24,10 +24,43 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # ── Connection Setup ────────────────────────────────────────────────
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:54322/postgres",
-)
+import socket
+
+def _resolve_database_url() -> str:
+    url = os.getenv(
+        "DATABASE_URL",
+        "postgresql://postgres:postgres@localhost:54322/postgres",
+    )
+    try:
+        parts = url.split("@")
+        if len(parts) > 1:
+            credentials = parts[0]
+            host_and_db = parts[1].split("/")
+            host_port = host_and_db[0]
+            db_path = "/".join(host_and_db[1:]) if len(host_and_db) > 1 else ""
+            
+            if ":" in host_port:
+                host, port_str = host_port.split(":")
+                if port_str == "6543":
+                    logger.info(f"Checking database connection to {host}:6543...")
+                    try:
+                        # Short timeout (3s) to check port availability
+                        with socket.create_connection((host, 6543), timeout=3.0):
+                            logger.info(f"✓ Database host {host}:6543 is reachable.")
+                            return url
+                    except Exception as e:
+                        logger.warning(
+                            f"✗ Connection to port 6543 failed: {e}. "
+                            "Port 6543 might be blocked in this environment (e.g. Render). "
+                            "Falling back to port 5432 (Session Mode)..."
+                        )
+                        new_host_port = f"{host}:5432"
+                        return f"{credentials}@{new_host_port}/{db_path}"
+    except Exception as parse_err:
+        logger.error(f"Error parsing DATABASE_URL: {parse_err}")
+    return url
+
+DATABASE_URL = _resolve_database_url()
 
 # PostgreSQL with production-ready pool settings
 engine = create_engine(
