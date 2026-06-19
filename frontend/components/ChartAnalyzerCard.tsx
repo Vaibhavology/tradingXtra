@@ -13,6 +13,8 @@ export default function ChartAnalyzerCard() {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
       setFile(selectedFile);
+      // Revoke previous blob URL to prevent memory leak
+      if (preview) URL.revokeObjectURL(preview);
       setPreview(URL.createObjectURL(selectedFile));
       setResult(null);
       setError(null);
@@ -35,6 +37,8 @@ export default function ChartAnalyzerCard() {
   };
 
   const handleClear = () => {
+    // Revoke blob URL to free memory
+    if (preview) URL.revokeObjectURL(preview);
     setFile(null);
     setPreview(null);
     setResult(null);

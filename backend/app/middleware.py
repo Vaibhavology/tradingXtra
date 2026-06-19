@@ -26,8 +26,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         path = request.url.path
         
-        # Don't limit static assets or health checks
-        if path.startswith("/docs") or path.startswith("/openapi.json"):
+        # Don't limit static assets, health checks, or scan endpoint
+        if path.startswith("/docs") or path.startswith("/openapi.json") or path == "/api/health" or path == "/api/scan":
             return await call_next(request)
             
         current_time = time.time()

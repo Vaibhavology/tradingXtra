@@ -8,6 +8,7 @@ FastAPI entry point with:
 """
 
 import logging
+import os
 import threading
 from contextlib import asynccontextmanager
 
@@ -17,9 +18,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 
 # ── Logging ──────────────────────────────────────────────────────────
+_log_level = logging.DEBUG if settings.DEBUG else logging.INFO
+_log_format = (
+    '{"time":"%(asctime)s","name":"%(name)s","level":"%(levelname)s","msg":"%(message)s"}'
+    if settings.ENVIRONMENT == "production"
+    else "%(asctime)s [%(name)s] %(levelname)s: %(message)s"
+)
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+    level=_log_level,
+    format=_log_format,
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger("tradingxtra")
@@ -125,12 +132,24 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"✗ Scheduler failed: {e}")
 
-    # 4. Startup batch evaluation (after data preload settles)
+    # 4. Immediately seed scan cache from DB (so /api/scan isn't empty)
+    try:
+        from app.services.evaluation_cache import get_all_db_results, store_batch_results
+        db_results = get_all_db_results(max_age_min=480)  # 8 hours — use whatever we have
+        if db_results:
+            store_batch_results(db_results)
+            logger.info(f"✓ Scan cache seeded from DB: {len(db_results)} results")
+        else:
+            logger.info("  No existing DB results to seed scan cache")
+    except Exception as e:
+        logger.warning(f"✗ Scan cache seed failed: {e}")
+
+    # 5. Start background batch evaluation (after data preload settles)
     def _startup_batch():
         """Wait for initial data preload, then evaluate all stocks."""
         import time
-        logger.info("Startup batch: waiting 60s for data preload...")
-        time.sleep(60)  # Let data preload get ahead
+        logger.info("Startup batch: waiting 30s for data preload...")
+        time.sleep(30)  # Reduced from 60s — DB seed handles initial requests
         logger.info("Startup batch: beginning full evaluation...")
         full_batch()
 
@@ -142,7 +161,7 @@ async def lifespan(app: FastAPI):
             name="startup-batch",
         )
         batch_thread.start()
-        logger.info("✓ Startup batch evaluation scheduled (starts in 60s)")
+        logger.info("✓ Startup batch evaluation scheduled (starts in 30s)")
     except Exception as e:
         logger.warning(f"✗ Startup batch failed to schedule: {e}")
 

@@ -13,6 +13,10 @@ numpy>=1.26.0
 # Database
 sqlalchemy>=2.0.25
 psycopg2-binary>=2.9.9
+alembic>=1.13.0
+
+# Production
+gunicorn>=21.2.0
 
 # Scheduler
 apscheduler>=3.10.4

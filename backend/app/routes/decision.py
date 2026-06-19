@@ -140,23 +140,31 @@ async def get_decision(
 
 @router.get(
     "/scan",
-    response_model=ScanResult,
+    response_model=None,
     summary="Scan all stocks in the universe",
     description=(
         "Returns pre-computed evaluation results for all tracked stocks.\n"
         "Results are computed in background (batch + incremental refresh)\n"
         "and served from cache in <50ms.\n\n"
+        "Use `?lite=true` for a smaller payload (mobile-friendly).\n"
         "If cache is empty (first startup), triggers a background batch\n"
         "and returns partial/empty results."
     ),
 )
-async def scan_all():
+async def scan_all(
+    lite: bool = Query(
+        False,
+        description="If true, return lightweight results (no agents/features/reasoning)",
+    ),
+):
     """Serve pre-computed scan results from cache. <50ms response."""
     from app.services.evaluation_cache import get_cached_scan, get_all_db_results
 
     # Tier 1: Memory cache (< 1ms)
     cached = get_cached_scan()
     if cached:
+        if lite:
+            cached = _make_lite(cached)
         return cached
 
     # Tier 2: Rebuild from DB (accept up to 4 hours old)
@@ -171,12 +179,15 @@ async def scan_all():
 
         db_results.sort(key=sort_key)
 
-        return {
+        result = {
             "results": db_results,
             "accepted": accepted,
             "rejected": rejected,
             "total": len(db_results),
         }
+        if lite:
+            result = _make_lite(result)
+        return result
 
     # Tier 3: Nothing cached — trigger background batch, return empty
     import threading
@@ -194,6 +205,36 @@ async def scan_all():
         "total": 0,
         "_loading": True,
         "_message": "First scan in progress. Refresh in 30-60 seconds.",
+    }
+
+
+def _make_lite(scan_data: Dict) -> Dict:
+    """Strip heavy fields from scan results for mobile bandwidth savings."""
+    lite_results = []
+    for r in scan_data.get("results", []):
+        lite_results.append({
+            "symbol": r.get("symbol"),
+            "name": r.get("name"),
+            "sector": r.get("sector"),
+            "score": r.get("score"),
+            "probability": r.get("probability"),
+            "ev": r.get("ev"),
+            "entry": r.get("entry"),
+            "stop_loss": r.get("stop_loss"),
+            "target": r.get("target"),
+            "atr": r.get("atr"),
+            "reward_risk": r.get("reward_risk"),
+            "decision": r.get("decision"),
+            "rejection_reason": r.get("rejection_reason"),
+            "regime": r.get("regime"),
+            "market_bias": r.get("market_bias"),
+            # Omit: agents, features, reasoning (saves ~60% payload)
+        })
+    return {
+        "results": lite_results,
+        "accepted": scan_data.get("accepted", 0),
+        "rejected": scan_data.get("rejected", 0),
+        "total": scan_data.get("total", 0),
     }
 
 

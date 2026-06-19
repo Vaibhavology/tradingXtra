@@ -1,9 +1,6 @@
 """
-TradingXtra Phase 1 — Database Layer
-PostgreSQL connection, ORM model, session management.
-
-For quick testing without PostgreSQL, set:
-  DATABASE_URL=sqlite:///./tradingxtra.db
+TradingXtra — Database Layer
+PostgreSQL connection, ORM models, session management.
 """
 
 import os
@@ -29,28 +26,19 @@ logger = logging.getLogger(__name__)
 # ── Connection Setup ────────────────────────────────────────────────
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/tradingxtra",
+    "postgresql://postgres:postgres@localhost:54322/postgres",
 )
 
-# Detect SQLite for compatibility (no pool_pre_ping on SQLite)
-_is_sqlite = DATABASE_URL.startswith("sqlite")
-
-if _is_sqlite:
-    engine = create_engine(
-        DATABASE_URL,
-        echo=False,
-        connect_args={"check_same_thread": False},
-    )
-else:
-    # PostgreSQL with production-ready pool settings
-    engine = create_engine(
-        DATABASE_URL,
-        echo=False,
-        pool_pre_ping=True,       # Detect dead connections before use
-        pool_size=5,              # Keep 5 connections in the pool
-        max_overflow=10,          # Allow 10 extra connections under load
-        pool_recycle=300,         # Recycle connections every 5 min (Render drops idle)
-    )
+# PostgreSQL with production-ready pool settings
+engine = create_engine(
+    DATABASE_URL,
+    echo=False,
+    pool_pre_ping=True,       # Detect dead connections before use
+    pool_size=5,              # Keep 5 connections in the pool
+    max_overflow=10,          # Allow 10 extra connections under load
+    pool_recycle=300,         # Recycle connections every 5 min (PgBouncer/Supabase may drop idle)
+    pool_timeout=30,          # Wait up to 30s for a free connection
+)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()

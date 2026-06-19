@@ -217,7 +217,7 @@ FULL_UNIVERSE: Dict[str, Dict] = {
     "ANGELONE":    {"name": "Angel One",                "sector": "Consumer Tech"},
     "CDSL":        {"name": "CDSL",                     "sector": "Consumer Tech"},
     "LODHA":       {"name": "Macrotech Developers",     "sector": "Real Estate"},
-    "JSWENERGY":   {"name": "JSW Energy",               "sector": "Renewable Energy"},
+    "JSWENERGY":   {"name": "JSW Energy",               "sector": "Renewable Energy"}
 }
 
 
@@ -251,9 +251,7 @@ class StockScreener:
         """
         Scan the full universe and return trending stock candidates.
         Results are cached for 30 minutes.
-
-        Returns list of dicts with full stock data ready for decision engine:
-        {symbol, name, sector, current_price, price_history, volume_history, ...}
+        Uses chunked downloads with retry for reliability.
         """
         # Check cache
         with _screen_lock:
@@ -269,127 +267,64 @@ class StockScreener:
         logger.info(f"Screening {len(self.universe)} stocks for trending candidates...")
         start = time.time()
 
-        # ── Batch download all stocks ────────────────────────────────────
         symbols = list(self.universe.keys())
-        yf_symbols = [_yf_symbol(s) for s in symbols]
 
-        try:
-            raw = yf.download(
-                yf_symbols,
-                period="30d",
-                auto_adjust=True,
-                progress=False,
-                threads=True,
-            )
-        except Exception as e:
-            logger.error(f"Screener batch download failed: {e}")
+        # ── Chunked download (40 stocks per chunk, with retry) ───────
+        CHUNK_SIZE = 40
+        MAX_RETRIES = 2
+        all_raw_frames = []
+
+        for chunk_start in range(0, len(symbols), CHUNK_SIZE):
+            chunk_syms = symbols[chunk_start:chunk_start + CHUNK_SIZE]
+            yf_chunk = [_yf_symbol(s) for s in chunk_syms]
+
+            for attempt in range(MAX_RETRIES + 1):
+                try:
+                    raw = yf.download(
+                        yf_chunk,
+                        period="30d",
+                        auto_adjust=True,
+                        progress=False,
+                        threads=True,
+                    )
+                    if not raw.empty:
+                        all_raw_frames.append((chunk_syms, raw))
+                        break
+                    elif attempt < MAX_RETRIES:
+                        logger.warning(
+                            f"Screener chunk {chunk_start//CHUNK_SIZE+1} "
+                            f"returned empty, retry {attempt+1}/{MAX_RETRIES}"
+                        )
+                        time.sleep(1)
+                except Exception as e:
+                    if attempt < MAX_RETRIES:
+                        logger.warning(
+                            f"Screener chunk {chunk_start//CHUNK_SIZE+1} "
+                            f"failed: {e}, retry {attempt+1}/{MAX_RETRIES}"
+                        )
+                        time.sleep(1)
+                    else:
+                        logger.error(
+                            f"Screener chunk {chunk_start//CHUNK_SIZE+1} "
+                            f"failed after {MAX_RETRIES} retries: {e}"
+                        )
+
+            # Small delay between chunks to avoid rate limits
+            time.sleep(0.3)
+
+        if not all_raw_frames:
+            logger.error("Screener: ALL chunks failed — no data")
             return []
 
-        if raw.empty:
-            logger.error("Screener got empty data from yfinance")
-            return []
-
-        # ── Score each stock ─────────────────────────────────────────────
+        # ── Score each stock from successful chunks ──────────────────
         scored = []
-        for symbol in symbols:
-            yf_sym = _yf_symbol(symbol)
-            try:
-                # Extract close and volume series
-                if isinstance(raw.columns, pd.MultiIndex):
-                    close_col = ("Close", yf_sym)
-                    vol_col = ("Volume", yf_sym)
-                    if close_col not in raw.columns:
-                        continue
-                    closes = raw[close_col].dropna()
-                    volumes = raw[vol_col].dropna()
-                else:
-                    closes = raw["Close"].dropna()
-                    volumes = raw["Volume"].dropna()
+        for chunk_syms, raw in all_raw_frames:
+            for symbol in chunk_syms:
+                result = self._score_stock(symbol, raw)
+                if result:
+                    scored.append(result)
 
-                if len(closes) < 10:
-                    continue
-
-                # Last 20 sessions
-                closes = closes.tail(20)
-                volumes = volumes.tail(20)
-
-                close_list = closes.round(2).tolist()
-                vol_list = volumes.tolist()
-
-                # ── Screening Metrics ────────────────────────────────────
-                current = float(close_list[-1])
-
-                # 5-day return
-                if len(close_list) >= 6:
-                    ret_5d = ((close_list[-1] - close_list[-6]) / close_list[-6]) * 100
-                else:
-                    ret_5d = 0.0
-
-                # 10-day return
-                if len(close_list) >= 11:
-                    ret_10d = ((close_list[-1] - close_list[-11]) / close_list[-11]) * 100
-                else:
-                    ret_10d = ret_5d
-
-                # Volume ratio: peak of last 3 days vs prior baseline
-                if len(vol_list) >= 10:
-                    recent_peak = max(vol_list[-3:])
-                    baseline = vol_list[:-3]
-                    baseline_avg = sum(baseline) / len(baseline) if baseline else 1
-                    vol_ratio = recent_peak / baseline_avg if baseline_avg > 0 else 0
-                else:
-                    vol_ratio = 0.0
-
-                # Near 20-day high? (within 3%)
-                high_20d = max(close_list)
-                near_high = current >= high_20d * 0.97
-
-                # ── Trending Score ───────────────────────────────────────
-                # Higher score = more likely to be trending / worth analyzing
-                trend_score = 0.0
-
-                # Momentum component (absolute value — catches both bulls & bears)
-                trend_score += min(abs(ret_5d) * 3, 30)   # max 30 pts
-                trend_score += min(abs(ret_10d) * 2, 20)  # max 20 pts
-
-                # Volume surge component
-                if vol_ratio >= 2.0:
-                    trend_score += 25
-                elif vol_ratio >= 1.5:
-                    trend_score += 15
-                elif vol_ratio >= 1.2:
-                    trend_score += 5
-
-                # Breakout component
-                if near_high:
-                    trend_score += 15
-
-                # Gap detection (today vs yesterday)
-                if len(close_list) >= 2:
-                    gap_pct = abs(close_list[-1] - close_list[-2]) / close_list[-2] * 100
-                    if gap_pct >= 2:
-                        trend_score += 10
-
-                scored.append({
-                    "symbol": symbol,
-                    "name": self.universe[symbol]["name"],
-                    "sector": self.universe[symbol]["sector"],
-                    "current_price": round(current, 2),
-                    "price_history": [float(c) for c in close_list],
-                    "volume_history": [int(v) for v in vol_list],
-                    "delivery_percent": 45,  # placeholder
-                    "fii_net": 0,
-                    "dii_net": 0,
-                    "trend_score": round(trend_score, 1),
-                    "ret_5d": round(ret_5d, 2),
-                    "vol_ratio": round(vol_ratio, 2),
-                })
-
-            except Exception as e:
-                logger.debug(f"Screener skip {symbol}: {e}")
-                continue
-
-        # ── Sort by trend score and take top N ───────────────────────────
+        # ── Sort by trend score and take top N ───────────────────────
         scored.sort(key=lambda x: x["trend_score"], reverse=True)
         trending = scored[:top_n]
 
@@ -408,6 +343,90 @@ class StockScreener:
             _screen_cache["ts"] = datetime.now()
 
         return trending
+
+    def _score_stock(self, symbol: str, raw: pd.DataFrame) -> Optional[Dict]:
+        """Score a single stock from downloaded data. Returns dict or None."""
+        yf_sym = _yf_symbol(symbol)
+        try:
+            # Extract close and volume series
+            if isinstance(raw.columns, pd.MultiIndex):
+                close_col = ("Close", yf_sym)
+                vol_col = ("Volume", yf_sym)
+                if close_col not in raw.columns:
+                    return None
+                closes = raw[close_col].dropna()
+                volumes = raw[vol_col].dropna()
+            else:
+                closes = raw["Close"].dropna()
+                volumes = raw["Volume"].dropna()
+
+            if len(closes) < 10:
+                return None
+
+            closes = closes.tail(20)
+            volumes = volumes.tail(20)
+
+            close_list = closes.round(2).tolist()
+            vol_list = volumes.tolist()
+
+            current = float(close_list[-1])
+
+            # 5-day return
+            ret_5d = ((close_list[-1] - close_list[-6]) / close_list[-6]) * 100 if len(close_list) >= 6 else 0.0
+            # 10-day return
+            ret_10d = ((close_list[-1] - close_list[-11]) / close_list[-11]) * 100 if len(close_list) >= 11 else ret_5d
+
+            # Volume ratio
+            if len(vol_list) >= 10:
+                recent_peak = max(vol_list[-3:])
+                baseline = vol_list[:-3]
+                baseline_avg = sum(baseline) / len(baseline) if baseline else 1
+                vol_ratio = recent_peak / baseline_avg if baseline_avg > 0 else 0
+            else:
+                vol_ratio = 0.0
+
+            # Near 20-day high?
+            high_20d = max(close_list)
+            near_high = current >= high_20d * 0.97
+
+            # ── Trending Score ───────────────────────────────────────
+            trend_score = 0.0
+            trend_score += min(abs(ret_5d) * 3, 30)
+            trend_score += min(abs(ret_10d) * 2, 20)
+
+            if vol_ratio >= 2.0:
+                trend_score += 25
+            elif vol_ratio >= 1.5:
+                trend_score += 15
+            elif vol_ratio >= 1.2:
+                trend_score += 5
+
+            if near_high:
+                trend_score += 15
+
+            if len(close_list) >= 2:
+                gap_pct = abs(close_list[-1] - close_list[-2]) / close_list[-2] * 100
+                if gap_pct >= 2:
+                    trend_score += 10
+
+            return {
+                "symbol": symbol,
+                "name": self.universe[symbol]["name"],
+                "sector": self.universe[symbol]["sector"],
+                "current_price": round(current, 2),
+                "price_history": [float(c) for c in close_list],
+                "volume_history": [int(v) for v in vol_list],
+                "delivery_percent": 45,
+                "fii_net": 0,
+                "dii_net": 0,
+                "trend_score": round(trend_score, 1),
+                "ret_5d": round(ret_5d, 2),
+                "vol_ratio": round(vol_ratio, 2),
+            }
+
+        except Exception as e:
+            logger.debug(f"Screener skip {symbol}: {e}")
+            return None
 
     def get_stock_info(self, symbol: str) -> Optional[Dict]:
         """Look up sector/name info for any stock in the universe."""

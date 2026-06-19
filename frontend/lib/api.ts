@@ -1,24 +1,58 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
-export async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
-  // Add 60s timeout to prevent hung requests on cold starts
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60_000);
-  try {
-    const res = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      signal: controller.signal,
-      headers: { "Content-Type": "application/json", ...options?.headers },
-      cache: "no-store",
-    });
-    if (!res.ok) throw new Error(`API ${path}: ${res.status}`);
-    return res.json();
-  } finally {
-    clearTimeout(timeout);
+/** Detect mobile device (used for timeout + lite mode decisions) */
+const isMobile = (): boolean => {
+  if (typeof window === "undefined") return false;
+  return /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent)
+    || window.innerWidth < 768;
+};
+
+/** Fetch with retry + exponential backoff */
+async function fetchWithRetry<T>(
+  url: string,
+  options: RequestInit,
+  retries: number = 2,
+  baseDelay: number = 1500,
+): Promise<T> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const timeout = isMobile() ? 90_000 : 60_000; // 90s mobile, 60s desktop
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    try {
+      const res = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: { "Content-Type": "application/json", ...options?.headers },
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        // Don't retry 4xx client errors (except 429 rate-limit)
+        if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+          throw new Error(`API ${url}: ${res.status}`);
+        }
+        throw new Error(`API ${url}: ${res.status}`);
+      }
+      return res.json();
+    } catch (e) {
+      lastError = e as Error;
+      if (attempt < retries && !(e instanceof DOMException && (e as DOMException).name === "AbortError" && timeout >= 90_000)) {
+        const delay = baseDelay * Math.pow(2, attempt);
+        console.warn(`API retry ${attempt + 1}/${retries} for ${url} in ${delay}ms`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    } finally {
+      clearTimeout(timer);
+    }
   }
+  throw lastError || new Error(`API failed after ${retries + 1} attempts`);
 }
 
-/** Ping the backend to wake it up from Render's cold start */
+export async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
+  return fetchWithRetry<T>(`${API_BASE}${path}`, options || {});
+}
+
+/** Ping the backend to ensure it's responsive */
 export const wakeBackend = () => fetch(`${API_BASE}/health`, { cache: "no-store" }).catch(() => {});
 
 // ── API Types ──────────────────────────────────────────────────────
@@ -222,7 +256,10 @@ export interface TradeRecord {
 
 // ── Fetch Functions ────────────────────────────────────────────────
 
-export const getScan = () => fetchAPI<ScanResult>("/scan");
+export const getScan = () => {
+  const lite = isMobile() ? "?lite=true" : "";
+  return fetchAPI<ScanResult>(`/scan${lite}`);
+};
 export const getDecision = (symbol: string) => fetchAPI<TradeDecision>(`/decision?symbol=${symbol}`);
 export const getMarketBrief = () => fetchAPI<MarketBrief>("/market-brief");
 export const refreshInvestSmart = () => fetchAPI<{ status: string; data: InvestSmart }>("/invest-smart/refresh", { method: "POST" });

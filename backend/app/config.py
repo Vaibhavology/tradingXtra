@@ -11,9 +11,13 @@ class Settings:
     API_HOST: str = os.getenv("API_HOST", "0.0.0.0")
     API_PORT: int = int(os.getenv("API_PORT", "8000"))
     DEBUG: bool = os.getenv("DEBUG", "true").lower() == "true"
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     
     # CORS
     CORS_ORIGINS: List[str] = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+
+    # Cache (optional — Upstash Redis)
+    REDIS_URL: str = os.getenv("REDIS_URL", "")
     
     # Data source (for future live data)
     DATA_SOURCE: str = os.getenv("DATA_SOURCE", "mock")  # mock, truedata, dhan, etc.

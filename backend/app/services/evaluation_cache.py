@@ -54,11 +54,6 @@ class ScanResult(Base):
         return f"<ScanResult {self.symbol} {self.decision} @ {self.evaluated_at}>"
 
 
-# Create table on import
-try:
-    Base.metadata.create_all(bind=engine, tables=[ScanResult.__table__])
-except Exception as e:
-    logger.warning(f"ScanResult table creation: {e}")
 
 
 # ── In-Memory Cache (Tier 1) ────────────────────────────────────────

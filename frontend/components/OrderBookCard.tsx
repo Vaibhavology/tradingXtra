@@ -1,10 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 
 export default function OrderBookCard({ symbol = "NIFTY" }: { symbol?: string }) {
   const [bids, setBids] = useState<{ price: number; size: number; total: number }[]>([]);
   const [asks, setAsks] = useState<{ price: number; size: number; total: number }[]>([]);
   const [spread, setSpread] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
+
+  // Throttle: buffer latest data, apply at most once per second
+  const pendingRef = useRef<{ bids: typeof bids; asks: typeof asks; spread: number } | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const lastUpdateRef = useRef(0);
+
+  const flushUpdate = useCallback(() => {
+    const data = pendingRef.current;
+    if (!data) return;
+    pendingRef.current = null;
+    rafRef.current = null;
+    lastUpdateRef.current = Date.now();
+    setBids(data.bids);
+    setAsks(data.asks);
+    setSpread(data.spread);
+  }, []);
 
   useEffect(() => {
     // Determine the correct WebSocket URL based on the current window location
@@ -27,7 +43,7 @@ export default function OrderBookCard({ symbol = "NIFTY" }: { symbol?: string })
           const parsedAsks = payload.data.asks.map((a: any) => {
             totalAsk += a.volume;
             return { price: a.price, size: a.volume, total: totalAsk };
-          }).reverse(); // Reverse asks so highest price is at top
+          }).reverse();
 
           // Parse bids
           let totalBid = 0;
@@ -36,11 +52,17 @@ export default function OrderBookCard({ symbol = "NIFTY" }: { symbol?: string })
             return { price: b.price, size: b.volume, total: totalBid };
           });
 
-          setAsks(parsedAsks);
-          setBids(parsedBids);
-          
-          if (parsedAsks.length > 0 && parsedBids.length > 0) {
-            setSpread(parsedAsks[parsedAsks.length - 1].price - parsedBids[0].price);
+          const newSpread = (parsedAsks.length > 0 && parsedBids.length > 0)
+            ? parsedAsks[parsedAsks.length - 1].price - parsedBids[0].price
+            : 0;
+
+          // Buffer update — throttle to max 1 render/sec
+          pendingRef.current = { bids: parsedBids, asks: parsedAsks, spread: newSpread };
+          const elapsed = Date.now() - lastUpdateRef.current;
+          if (elapsed >= 1000) {
+            flushUpdate();
+          } else if (!rafRef.current) {
+            rafRef.current = window.setTimeout(flushUpdate, 1000 - elapsed) as unknown as number;
           }
         }
       } catch (err) {
@@ -50,8 +72,12 @@ export default function OrderBookCard({ symbol = "NIFTY" }: { symbol?: string })
 
     return () => {
       ws.close();
+      if (rafRef.current) {
+        clearTimeout(rafRef.current as unknown as ReturnType<typeof setTimeout>);
+        rafRef.current = null;
+      }
     };
-  }, [symbol]);
+  }, [symbol, flushUpdate]);
 
   const maxTotal = Math.max(
     asks.length > 0 ? asks[0].total : 0, 

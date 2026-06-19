@@ -61,7 +61,7 @@ Most trading dashboards show you charts. TradingXtra tells you **what to do and 
 │                                                                 │
 │  Services: Portfolio · Performance · Market Brief · News · AI   │
 │  Data: yfinance · RSS · YouTube Transcripts · Gemini Vision     │
-│  Storage: SQLite/PostgreSQL · In-Memory Cache (5min TTL)        │
+│  Storage: Supabase PostgreSQL · In-Memory Cache (5min TTL)      │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -123,7 +123,7 @@ Most trading dashboards show you charts. TradingXtra tells you **what to do and 
 | **Python 3.10+** | Core language |
 | **yfinance** | Real-time OHLCV data for 35 NSE stocks + indices |
 | **Google Gemini 2.5 Flash** | Multimodal AI (chart analysis, video intelligence) |
-| **SQLite / PostgreSQL** | Trade journaling, portfolio state, performance data |
+| **Supabase PostgreSQL** | Trade journaling, portfolio state, performance data |
 | **SQLAlchemy** | ORM for database operations |
 | **youtube-transcript-api** | Extract stock mentions from analyst videos |
 | **RSS Feeds** | Global/domestic market news ingestion |
@@ -141,7 +141,8 @@ Most trading dashboards show you charts. TradingXtra tells you **what to do and 
 | Service | Purpose |
 |---------|---------|
 | **Vercel** | Frontend hosting (auto-deploy from GitHub) |
-| **Render** | Backend hosting |
+| **Render** | Backend API hosting |
+| **Supabase** | Managed PostgreSQL database |
 | **Google Search Console** | SEO monitoring with canonical URLs + structured sitemap |
 
 ---

@@ -9,7 +9,7 @@ EV-based stock evaluation engine using real NSE market data.
 ## Prerequisites
 
 - Python 3.10+
-- PostgreSQL 14+ (or SQLite for quick testing)
+- Supabase PostgreSQL (or any PostgreSQL 14+ instance)
 
 ---
 
@@ -24,23 +24,28 @@ pip install -r requirements.txt
 
 ### 2. Database setup
 
-**Option A: PostgreSQL (recommended)**
+**Supabase PostgreSQL (production & local dev)**
 
-```bash
-# Create the database
-psql -U postgres -c "CREATE DATABASE tradingxtra;"
+1. Create a project on [Supabase](https://supabase.com)
+2. Copy the connection string from **Settings → Database**:
+   - **Direct URL (port 5432)** — for local dev, migrations, imports/exports
+   - **Transaction Pooler URL (port 6543)** — for production on Render
 
-# The .env file already has:
-# DATABASE_URL=postgresql://postgres:postgres@localhost:5432/tradingxtra
-```
-
-**Option B: SQLite (quick testing, no install needed)**
-
-Edit `.env` and comment/uncomment:
+3. Set `DATABASE_URL` in `.env`:
 
 ```env
-# DATABASE_URL=postgresql://postgres:postgres@localhost:5432/tradingxtra
-DATABASE_URL=sqlite:///./tradingxtra.db
+# Local development (use Direct URL, port 5432):
+DATABASE_URL=postgresql://postgres.[ref]:[pw]@db.[ref].supabase.co:5432/postgres
+
+# Production on Render (use Transaction Pooler URL, port 6543):
+# DATABASE_URL=postgresql://postgres.[ref]:[pw]@aws-0-[region].pooler.supabase.com:6543/postgres
+```
+
+4. Apply migrations:
+
+```bash
+cd backend
+alembic upgrade head
 ```
 
 ### 3. Run the server
