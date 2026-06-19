@@ -104,26 +104,49 @@ export function DashboardCacheProvider({ children }: { children: React.ReactNode
   const hydratedRef = useRef(false);
 
   // ── Core fetch logic ──
+  const fastRetryRef = useRef(0);
+  const MAX_FAST_RETRIES = 6;
+  const FAST_RETRY_DELAY = 15_000; // 15 seconds
+
   const loadFast = useCallback(async (isCancelled: { current: boolean }) => {
     try {
       const [b, p, pf] = await Promise.allSettled([
         getMarketBrief(), getPortfolio(), getPerformance(),
       ]);
       if (isCancelled.current) return;
-      if (b.status === "fulfilled") setBrief(b.value);
+      const gotBrief = b.status === "fulfilled";
+      if (gotBrief) setBrief(b.value);
       if (p.status === "fulfilled") setPortfolio(p.value);
       if (pf.status === "fulfilled") setPerf(pf.value);
-      setLastFetched(Date.now());
+      if (gotBrief) {
+        setLastFetched(Date.now());
+        fastRetryRef.current = 0; // Reset on success
+      } else if (fastRetryRef.current < MAX_FAST_RETRIES) {
+        // Brief failed — schedule a fast retry (backend might still be starting)
+        fastRetryRef.current += 1;
+        console.warn(`Fast load retry ${fastRetryRef.current}/${MAX_FAST_RETRIES} in ${FAST_RETRY_DELAY/1000}s`);
+        setTimeout(() => {
+          if (!isCancelled.current) loadFast(isCancelled);
+        }, FAST_RETRY_DELAY);
+      }
     } catch (e) {
       console.error("Fast load error:", e);
+      // Network-level failure — retry if we haven't exhausted
+      if (!isCancelled.current && fastRetryRef.current < MAX_FAST_RETRIES) {
+        fastRetryRef.current += 1;
+        console.warn(`Fast load retry ${fastRetryRef.current}/${MAX_FAST_RETRIES} in ${FAST_RETRY_DELAY/1000}s`);
+        setTimeout(() => {
+          if (!isCancelled.current) loadFast(isCancelled);
+        }, FAST_RETRY_DELAY);
+      }
     } finally {
       if (!isCancelled.current) setLoading(false);
     }
   }, []);
 
   const scanRetryRef = useRef(0);
-  const MAX_SCAN_RETRIES = 3;
-  const SCAN_RETRY_DELAY = 10_000; // 10 seconds
+  const MAX_SCAN_RETRIES = 6;
+  const SCAN_RETRY_DELAY = 15_000; // 15 seconds
 
   const loadScan = useCallback(async (isCancelled: { current: boolean }) => {
     try {

@@ -65,7 +65,7 @@ _cache_lock = threading.Lock()
 # TTL settings (seconds)
 TTL_SINGLE = 300     # 5 min for individual stock
 TTL_SCAN = 300       # 5 min for full scan results
-TTL_DB = 14400       # 4 hours — DB results survive restarts, batch keeps them fresh
+TTL_DB = 86400       # 24 hours — DB results survive overnight, morning cron refreshes
 
 
 def get_cached_result(symbol: str) -> Optional[Dict]:
@@ -183,17 +183,15 @@ def store_batch_results(results: List[Dict]):
     logger.info(f"Batch cached: {len(results)} results → memory + DB")
 
 
-def get_all_db_results(max_age_min: int = 30) -> List[Dict]:
-    """Load all evaluation results from DB that aren't too old."""
-    cutoff = datetime.utcnow() - timedelta(minutes=max_age_min)
+def get_all_db_results(max_age_min: Optional[int] = None) -> List[Dict]:
+    """Load all evaluation results from DB. Optional age filter in minutes."""
     db = SessionLocal()
     try:
-        rows = (
-            db.query(ScanResult)
-            .filter(ScanResult.evaluated_at >= cutoff)
-            .order_by(ScanResult.ev.desc())
-            .all()
-        )
+        query = db.query(ScanResult)
+        if max_age_min is not None:
+            cutoff = datetime.utcnow() - timedelta(minutes=max_age_min)
+            query = query.filter(ScanResult.evaluated_at >= cutoff)
+        rows = query.order_by(ScanResult.ev.desc()).all()
         results = []
         for row in rows:
             try:

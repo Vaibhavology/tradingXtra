@@ -100,6 +100,21 @@ class InvestSmartCache(Base):
         return f"<InvestSmartCache {self.video_link} @ {self.analyzed_at}>"
 
 
+class MarketBriefCache(Base):
+    """Persists the daily market brief so dashboards load instantly.
+    One row per calendar date — overwritten when refreshed."""
+
+    __tablename__ = "market_brief_cache"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    cache_date = Column(String(10), unique=True, nullable=False, index=True)  # 'YYYY-MM-DD'
+    brief_json = Column(JSON, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<MarketBriefCache {self.cache_date} @ {self.created_at}>"
+
+
 class Trade(Base):
     """Trade journal — tracks all decisions and their outcomes."""
 

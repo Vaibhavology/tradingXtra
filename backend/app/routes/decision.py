@@ -13,7 +13,7 @@ from typing import Optional, Dict, List
 from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel, Field
 
-from app.decision_engine import evaluate
+from app.decision_engine import evaluate, _sanitize
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -165,10 +165,10 @@ async def scan_all(
     if cached:
         if lite:
             cached = _make_lite(cached)
-        return cached
+        return _sanitize(cached)
 
-    # Tier 2: Rebuild from DB (accept up to 4 hours old)
-    db_results = get_all_db_results(max_age_min=240)
+    # Tier 2: Rebuild from DB (always serve from DB)
+    db_results = get_all_db_results(max_age_min=None)
     if db_results and len(db_results) > 5:
         accepted = sum(1 for r in db_results if r.get("decision") == "ACCEPT")
         rejected = len(db_results) - accepted
@@ -187,7 +187,7 @@ async def scan_all(
         }
         if lite:
             result = _make_lite(result)
-        return result
+        return _sanitize(result)
 
     # Tier 3: Nothing cached — trigger background batch, return empty
     import threading

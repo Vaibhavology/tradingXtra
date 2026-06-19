@@ -39,6 +39,41 @@ logging.getLogger("apscheduler").setLevel(logging.WARNING)
 _scheduler = None
 
 
+# ── Daily Morning Refresh (Cron) ──────────────────────────────────────
+def daily_morning_refresh():
+    """
+    Daily morning refresh scheduled for 6:30 AM IST.
+    1. Refreshes OHLCV data for all stocks.
+    2. Runs a full batch evaluation of all stocks.
+    3. Regenerates the market brief and caches it.
+    """
+    import time
+    logger.info("=" * 60)
+    logger.info("  DAILY MORNING REFRESH STARTING...")
+    logger.info("=" * 60)
+
+    start_time = time.time()
+    try:
+        from app.data_fetcher import refresh_all_stocks
+        logger.info("1/3: Refreshing OHLCV data...")
+        refresh_all_stocks()
+
+        from app.services.batch_evaluator import full_batch
+        logger.info("2/3: Running full batch evaluation...")
+        full_batch()
+
+        from app.services.market_brief import generate_brief
+        logger.info("3/3: Regenerating market brief...")
+        generate_brief(force_refresh=True)
+
+        duration = time.time() - start_time
+        logger.info("=" * 60)
+        logger.info(f"  DAILY MORNING REFRESH COMPLETE in {duration:.1f}s")
+        logger.info("=" * 60)
+    except Exception as e:
+        logger.error(f"Daily morning refresh failed: {e}", exc_info=True)
+
+
 # ── Lifespan (startup + shutdown) ────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -64,38 +99,12 @@ async def lifespan(app: FastAPI):
         logger.error(f"✗ Database init failed: {e}")
         logger.error("  Set DATABASE_URL in .env (see README.md)")
 
-    # 2. Start background data preload (non-blocking)
-    try:
-        from app.data_fetcher import preload_all_stocks
-        preload_thread = threading.Thread(
-            target=preload_all_stocks,
-            daemon=True,
-            name="data-preloader",
-        )
-        preload_thread.start()
-        logger.info("✓ Data preloading started in background")
-    except Exception as e:
-        logger.warning(f"✗ Preload failed to start: {e}")
-
-    # 3. Start scheduler for periodic refresh + trade monitor + batch evaluator
+    # 2. Start scheduler for trade monitor + daily morning refresh
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
-        from app.data_fetcher import refresh_all_stocks
         from app.services.trade_monitor import check_open_trades
-        from app.services.batch_evaluator import (
-            full_batch, incremental_refresh, priority_refresh,
-        )
 
         _scheduler = BackgroundScheduler()
-
-        # Data refresh (OHLCV prices from yfinance)
-        _scheduler.add_job(
-            refresh_all_stocks,
-            "interval",
-            minutes=15,
-            id="ohlcv_refresh",
-            max_instances=1,
-        )
 
         # Trade monitor (check SL/target hits)
         _scheduler.add_job(
@@ -106,36 +115,27 @@ async def lifespan(app: FastAPI):
             max_instances=1,
         )
 
-        # Batch evaluator: incremental refresh every 15 min
+        # Daily morning refresh at 6:30 AM IST (Asia/Kolkata timezone)
+        from apscheduler.triggers.cron import CronTrigger
+        from zoneinfo import ZoneInfo
         _scheduler.add_job(
-            incremental_refresh,
-            "interval",
-            minutes=15,
-            id="eval_incremental",
-            max_instances=1,
-            kwargs={"max_stocks": 50},
-        )
-
-        # Batch evaluator: priority refresh every 5 min
-        _scheduler.add_job(
-            priority_refresh,
-            "interval",
-            minutes=5,
-            id="eval_priority",
+            daily_morning_refresh,
+            trigger=CronTrigger(hour=6, minute=30, timezone=ZoneInfo("Asia/Kolkata")),
+            id="daily_morning_refresh",
             max_instances=1,
         )
 
         _scheduler.start()
-        logger.info("✓ Scheduler started (data + trades + batch evaluator)")
+        logger.info("✓ Scheduler started (trade monitor + daily morning refresh)")
     except ImportError:
         logger.warning("✗ APScheduler not installed — auto-refresh disabled")
     except Exception as e:
         logger.warning(f"✗ Scheduler failed: {e}")
 
-    # 4. Immediately seed scan cache from DB (so /api/scan isn't empty)
+    # 3. Immediately seed scan cache from DB (so /api/scan isn't empty)
     try:
         from app.services.evaluation_cache import get_all_db_results, store_batch_results
-        db_results = get_all_db_results(max_age_min=480)  # 8 hours — use whatever we have
+        db_results = get_all_db_results(max_age_min=None)  # Load all DB results
         if db_results:
             store_batch_results(db_results)
             logger.info(f"✓ Scan cache seeded from DB: {len(db_results)} results")
@@ -143,27 +143,6 @@ async def lifespan(app: FastAPI):
             logger.info("  No existing DB results to seed scan cache")
     except Exception as e:
         logger.warning(f"✗ Scan cache seed failed: {e}")
-
-    # 5. Start background batch evaluation (after data preload settles)
-    def _startup_batch():
-        """Wait for initial data preload, then evaluate all stocks."""
-        import time
-        logger.info("Startup batch: waiting 30s for data preload...")
-        time.sleep(30)  # Reduced from 60s — DB seed handles initial requests
-        logger.info("Startup batch: beginning full evaluation...")
-        full_batch()
-
-    try:
-        from app.services.batch_evaluator import full_batch
-        batch_thread = threading.Thread(
-            target=_startup_batch,
-            daemon=True,
-            name="startup-batch",
-        )
-        batch_thread.start()
-        logger.info("✓ Startup batch evaluation scheduled (starts in 30s)")
-    except Exception as e:
-        logger.warning(f"✗ Startup batch failed to schedule: {e}")
 
     logger.info("")
     logger.info("  Phase 4 Endpoints:")

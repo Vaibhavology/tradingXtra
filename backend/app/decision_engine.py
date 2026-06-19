@@ -29,6 +29,18 @@ from app.services.news_service import get_symbol_sentiment
 logger = logging.getLogger(__name__)
 
 
+def _sanitize(obj):
+    """Recursively replace NaN/Infinity float values with 0.0 so JSON serialization never fails."""
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize(v) for v in obj]
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return 0.0
+    return obj
+
+
 # ── Scoring Parameters ───────────────────────────────────────────────
 BASE_WEIGHTS = {
     "PS": 0.22,   # Pattern Strength
@@ -380,7 +392,7 @@ def evaluate(symbol: str, allow_stale: bool = False) -> Dict:
         },
     }
 
-    return {
+    return _sanitize({
         "symbol": symbol,
         "name": meta.get("name", symbol),
         "sector": meta.get("sector", "Unknown"),
@@ -400,4 +412,4 @@ def evaluate(symbol: str, allow_stale: bool = False) -> Dict:
         "market_bias": market_bias,
         "reasoning": reasoning,
         "data_points": len(stock_data),
-    }
+    })

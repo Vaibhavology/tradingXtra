@@ -41,7 +41,8 @@ export default function Dashboard() {
   const confidence = brief ? Math.abs(brief.scores.bias_score * 100).toFixed(0) : "0";
 
   return (
-    <div className="space-y-12 max-w-[1600px] mx-auto pb-16 animate-fade-in">
+    <>
+      <div className="space-y-12 max-w-[1600px] mx-auto pb-16 animate-fade-in">
       
       {/* 1. MARKET STATE (FIRST THING USER SEES) */}
       <div className="relative overflow-hidden rounded-3xl border border-[var(--border-default)] bg-[var(--bg-card)] shadow-2xl p-8 lg:p-12 hover:shadow-3xl transition-shadow duration-500 group">
@@ -202,26 +203,55 @@ export default function Dashboard() {
           </div>
 
           <div className="flex flex-col gap-5">
-             {/* Risk Alerts (Clickable) */}
+             {/* Market Alerts & Intelligence (Clickable) */}
              <div 
                 onClick={() => setIsAlertModalOpen(true)}
-                className="bg-red-500/5 border border-red-500/20 rounded-2xl p-6 hover:-translate-y-1 transition-transform duration-300 shadow-xl relative overflow-hidden cursor-pointer group"
+                className={`${brief?.risk_alerts?.length ? 'bg-red-500/5 border-red-500/20' : 'bg-[var(--bg-card)] border-[var(--border-default)]'} border rounded-2xl p-6 hover:-translate-y-1 transition-transform duration-300 shadow-xl relative overflow-hidden cursor-pointer group`}
              >
-                <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-full blur-3xl group-hover:bg-red-500/20 transition-colors" />
+                <div className={`absolute top-0 right-0 w-32 h-32 ${brief?.risk_alerts?.length ? 'bg-red-500/10 group-hover:bg-red-500/20' : 'bg-blue-500/5 group-hover:bg-blue-500/10'} rounded-full blur-3xl transition-colors`} />
                 <div className="flex justify-between items-start relative z-10 mb-4">
-                  <h3 className="text-xs uppercase tracking-widest font-black text-red-400 flex items-center gap-2">
-                     <AlertTriangle className="w-5 h-5" /> Market Alerts
+                  <h3 className={`text-xs uppercase tracking-widest font-black flex items-center gap-2 ${brief?.risk_alerts?.length ? 'text-red-400' : 'text-[var(--text-muted)]'}`}>
+                     {brief?.risk_alerts?.length ? <AlertTriangle className="w-5 h-5" /> : <Globe className="w-5 h-5" />}
+                     Market Alerts
                   </h3>
-                  <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-1 rounded font-bold uppercase tracking-widest">Expand</span>
+                  <span className={`text-[10px] ${brief?.risk_alerts?.length ? 'bg-red-500/20 text-red-400' : 'bg-white/5 text-[var(--text-muted)]'} px-2 py-1 rounded font-bold uppercase tracking-widest`}>Expand</span>
                 </div>
-                <ul className="space-y-4 relative z-10">
+                <ul className="space-y-3 relative z-10">
+                   {/* Critical risk alerts first */}
                    {brief?.risk_alerts?.map((alert, i) => (
-                      <li key={i} className="text-sm text-[var(--text-primary)] leading-relaxed border-l-2 border-red-500/40 pl-4 font-medium line-clamp-2">
-                         {alert}
+                      <li key={`risk-${i}`} className="text-sm text-[var(--text-primary)] leading-relaxed border-l-2 border-red-500/40 pl-4 font-medium line-clamp-2">
+                         ⚠ {alert}
                       </li>
                    ))}
-                   {(!brief?.risk_alerts || brief.risk_alerts.length === 0) && (
-                      <li className="text-sm text-[var(--text-muted)] italic">No active critical alerts.</li>
+                   
+                   {/* USD/INR */}
+                   {brief?.usd_inr && (
+                      <li className="text-sm text-[var(--text-primary)] leading-relaxed border-l-2 border-blue-500/30 pl-4 font-medium flex items-center gap-2">
+                         <span className="text-[var(--text-muted)]">USD/INR</span>
+                         <span className="font-mono font-bold">₹{brief.usd_inr.price.toFixed(2)}</span>
+                         <span className={`text-xs font-mono ${brief.usd_inr.change_pct > 0 ? 'text-[var(--accent-red)]' : brief.usd_inr.change_pct < 0 ? 'text-[var(--accent-green)]' : 'text-[var(--text-muted)]'}`}>
+                            {brief.usd_inr.change_pct > 0 ? '▲' : brief.usd_inr.change_pct < 0 ? '▼' : '—'} {Math.abs(brief.usd_inr.change_pct).toFixed(2)}%
+                         </span>
+                      </li>
+                   )}
+
+                   {/* Global drivers */}
+                   {brief?.drivers?.global?.slice(0, 2).map((driver, i) => (
+                      <li key={`global-${i}`} className="text-sm text-[var(--text-secondary)] leading-relaxed border-l-2 border-emerald-500/30 pl-4 line-clamp-1">
+                         <span className="text-[10px] text-emerald-400 font-bold mr-2">GLOBAL</span>{driver}
+                      </li>
+                   ))}
+
+                   {/* India drivers */}
+                   {brief?.drivers?.india?.slice(0, 2).map((driver, i) => (
+                      <li key={`india-${i}`} className="text-sm text-[var(--text-secondary)] leading-relaxed border-l-2 border-orange-500/30 pl-4 line-clamp-1">
+                         <span className="text-[10px] text-orange-400 font-bold mr-2">INDIA</span>{driver}
+                      </li>
+                   ))}
+
+                   {/* Fallback only if absolutely nothing */}
+                   {!brief?.risk_alerts?.length && !brief?.drivers?.global?.length && !brief?.drivers?.india?.length && !brief?.usd_inr && (
+                      <li className="text-sm text-[var(--text-muted)] italic">No market data available.</li>
                    )}
                 </ul>
              </div>
@@ -398,6 +428,7 @@ export default function Dashboard() {
           )}
         </div>
       )}
+      </div>
 
       {/* Expanded Market Context Modal */}
       {isAlertModalOpen && (
@@ -508,8 +539,7 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-
-    </div>
+    </>
   );
 }
 
