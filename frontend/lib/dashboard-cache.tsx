@@ -29,12 +29,14 @@ interface DashboardContextValue extends DashboardCache {
 const CACHE_KEY = "tradingxtra_dashboard_cache";
 const CACHE_TTL = 3 * 60 * 1000; // 3 minutes — don't re-fetch if data is fresh
 const SCAN_STAGGER_DELAY = 3000; // ms delay before starting scan load
+const REFRESH_INTERVAL = 180_000; // 3 minutes periodic refresh
 
 // ── Helpers ────────────────────────────────────────────────────────
 
 function loadFromStorage(): Partial<DashboardCache> | null {
   try {
-    const raw = sessionStorage.getItem(CACHE_KEY);
+    // Use localStorage so data persists across tab/browser closes
+    const raw = localStorage.getItem(CACHE_KEY);
     if (!raw) return null;
     return JSON.parse(raw);
   } catch {
@@ -44,7 +46,7 @@ function loadFromStorage(): Partial<DashboardCache> | null {
 
 function saveToStorage(cache: DashboardCache) {
   try {
-    // Trim scan results for storage — keep max 50 to avoid mobile sessionStorage overflow
+    // Trim scan results for storage — keep max 50 to avoid overflow
     const trimmedScan = cache.scan ? {
       ...cache.scan,
       results: cache.scan.results.slice(0, 50).map(r => ({
@@ -57,7 +59,7 @@ function saveToStorage(cache: DashboardCache) {
     } : null;
 
     // Don't persist loading/error states
-    sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
       scan: trimmedScan,
       brief: cache.brief,
       portfolio: cache.portfolio,
@@ -66,9 +68,9 @@ function saveToStorage(cache: DashboardCache) {
       lastScanFetched: cache.lastScanFetched,
     }));
   } catch {
-    // sessionStorage full or unavailable — clear and retry with minimal data
+    // localStorage full or unavailable — clear and retry
     try {
-      sessionStorage.removeItem(CACHE_KEY);
+      localStorage.removeItem(CACHE_KEY);
     } catch {
       // ignore — truly unavailable
     }
@@ -87,7 +89,7 @@ export function useDashboard(): DashboardContextValue {
 
 export function DashboardCacheProvider({ children }: { children: React.ReactNode }) {
   // Always start with loading=true and null data to avoid hydration mismatch.
-  // sessionStorage is only available on the client, so we defer reading it
+  // localStorage is only available on the client, so we defer reading it
   // to a useEffect below. This guarantees server and client render the same
   // initial HTML (the loading skeleton).
   const [scan, setScan] = useState<ScanResult | null>(null);
@@ -101,7 +103,6 @@ export function DashboardCacheProvider({ children }: { children: React.ReactNode
   const [lastScanFetched, setLastScanFetched] = useState(0);
 
   const fetchingRef = useRef(false);
-  const hydratedRef = useRef(false);
 
   // ── Core fetch logic ──
   const fastRetryRef = useRef(0);
@@ -177,93 +178,70 @@ export function DashboardCacheProvider({ children }: { children: React.ReactNode
     }
   }, []);
 
-  const startFetching = useCallback((force = false) => {
-    if (fetchingRef.current && !force) return;
-    fetchingRef.current = true;
+  const cleanupRef = useRef<(() => void) | null>(null);
+
+  // ── Hydrate from localStorage + conditionally fetch (client-only, single mount) ──
+  useEffect(() => {
+    const cached = loadFromStorage();
+    const now = Date.now();
+    let cachedLastFetched = 0;
+    let cachedLastScanFetched = 0;
+    let hasBrief = false;
+    let hasScan = false;
+
+    if (cached) {
+      if (cached.scan) { setScan(cached.scan as ScanResult); hasScan = true; }
+      if (cached.brief) { setBrief(cached.brief as MarketBriefType); hasBrief = true; }
+      if (cached.portfolio) setPortfolio(cached.portfolio as PortfolioState);
+      if (cached.perf) setPerf(cached.perf as PerformanceData);
+      if (cached.lastFetched) { setLastFetched(cached.lastFetched); cachedLastFetched = cached.lastFetched; }
+      if (cached.lastScanFetched) { setLastScanFetched(cached.lastScanFetched); cachedLastScanFetched = cached.lastScanFetched; }
+      // If we have cached data, don't show loading skeleton
+      if (hasBrief) setLoading(false);
+      if (hasScan) setScanLoading(false);
+    }
+
+    // Check staleness — only fetch if data is stale or missing
+    const fastStale = !hasBrief || (now - cachedLastFetched > CACHE_TTL);
+    const scanStale = !hasScan || (now - cachedLastScanFetched > CACHE_TTL);
 
     const isCancelled = { current: false };
 
-    const now = Date.now();
-    const fastStale = force || (now - lastFetched > CACHE_TTL);
-    const scanStale = force || (now - lastScanFetched > CACHE_TTL);
-
-    // If data is not stale, skip re-fetching
-    if (!fastStale && !scanStale) {
-      setLoading(false);
-      setScanLoading(false);
-      fetchingRef.current = false;
-      return;
+    if (fastStale || scanStale) {
+      wakeBackend();
     }
 
-    // Wake backend
-    wakeBackend();
-
+    // Only fetch fast data (brief/portfolio/perf) if stale or missing
     if (fastStale) {
-      setLoading(brief === null); // only show loading if we have no cached data
+      // Show loading skeleton only if we have nothing cached
+      if (!hasBrief) setLoading(true);
       loadFast(isCancelled);
     } else {
       setLoading(false);
+      console.log(`Dashboard: brief is fresh (${((now - cachedLastFetched)/1000).toFixed(0)}s old), skipping fetch`);
     }
 
+    // Only fetch scan if stale or missing
     let scanTimeout: ReturnType<typeof setTimeout> | null = null;
     if (scanStale) {
-      setScanLoading(scan === null); // only show loading if we have no cached data
+      if (!hasScan) setScanLoading(true);
       scanTimeout = setTimeout(() => loadScan(isCancelled), SCAN_STAGGER_DELAY);
     } else {
       setScanLoading(false);
+      console.log(`Dashboard: scan is fresh (${((now - cachedLastScanFetched)/1000).toFixed(0)}s old), skipping fetch`);
     }
 
-    // Set up the 3 minute periodic refresh
+    // Set up periodic refresh (every 3 minutes)
     const interval = setInterval(() => {
+      fastRetryRef.current = 0;
+      scanRetryRef.current = 0;
       loadFast(isCancelled);
-      scanRetryRef.current = 0; // Reset retries for periodic refresh
       loadScan(isCancelled);
-    }, 180_000);
+    }, REFRESH_INTERVAL);
 
-    // This is a long-lived effect — it cleans up when the provider unmounts (never in practice)
-    // But we store cleanup in ref for forceRefresh
     cleanupRef.current = () => {
       isCancelled.current = true;
       if (scanTimeout) clearTimeout(scanTimeout);
-      clearInterval(interval);
-      fetchingRef.current = false;
-    };
-  }, [lastFetched, lastScanFetched, brief, scan, loadFast, loadScan]);
-
-  const cleanupRef = useRef<(() => void) | null>(null);
-
-  // ── Hydrate from sessionStorage + start fetching (client-only, single mount) ──
-  useEffect(() => {
-    const cached = loadFromStorage();
-    if (cached) {
-      if (cached.scan) setScan(cached.scan as ScanResult);
-      if (cached.brief) setBrief(cached.brief as MarketBriefType);
-      if (cached.portfolio) setPortfolio(cached.portfolio as PortfolioState);
-      if (cached.perf) setPerf(cached.perf as PerformanceData);
-      if (cached.lastFetched) setLastFetched(cached.lastFetched);
-      if (cached.lastScanFetched) setLastScanFetched(cached.lastScanFetched);
-      // If we have cached brief, don't show full loading skeleton
-      if (cached.brief) setLoading(false);
-      if (cached.scan) setScanLoading(false);
-    }
-
-    // Start background fetch/refresh (startFetching uses stale closure values,
-    // but that's fine — it will treat data as stale and re-validate in background).
-    // We call it directly here rather than via startFetching() to avoid the closure
-    // overriding the loading states we just set above.
-    const isCancelled = { current: false };
-    wakeBackend();
-    loadFast(isCancelled);
-    const scanTimeout = setTimeout(() => loadScan(isCancelled), SCAN_STAGGER_DELAY);
-    const interval = setInterval(() => {
-      loadFast(isCancelled);
-      scanRetryRef.current = 0;
-      loadScan(isCancelled);
-    }, 180_000);
-
-    cleanupRef.current = () => {
-      isCancelled.current = true;
-      clearTimeout(scanTimeout);
       clearInterval(interval);
       fetchingRef.current = false;
     };
@@ -274,7 +252,7 @@ export function DashboardCacheProvider({ children }: { children: React.ReactNode
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Persist to sessionStorage on data changes ──
+  // ── Persist to localStorage on data changes ──
   useEffect(() => {
     saveToStorage({ scan, brief, portfolio, perf, loading, scanLoading, error, lastFetched, lastScanFetched });
   }, [scan, brief, portfolio, perf, lastFetched, lastScanFetched, loading, scanLoading, error]);
@@ -289,7 +267,8 @@ export function DashboardCacheProvider({ children }: { children: React.ReactNode
 
     // We need to refetch immediately
     fetchingRef.current = false;
-    scanRetryRef.current = 0; // Reset retries on force refresh
+    fastRetryRef.current = 0;
+    scanRetryRef.current = 0;
     const isCancelled = { current: false };
     wakeBackend();
     loadFast(isCancelled);
@@ -298,7 +277,7 @@ export function DashboardCacheProvider({ children }: { children: React.ReactNode
       loadFast(isCancelled);
       scanRetryRef.current = 0;
       loadScan(isCancelled);
-    }, 180_000);
+    }, REFRESH_INTERVAL);
     cleanupRef.current = () => {
       isCancelled.current = true;
       clearTimeout(scanTimeout);

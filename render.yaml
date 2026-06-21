@@ -1,0 +1,27 @@
+# Render Blueprint — deploys the FastAPI backend as a Docker web service
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: tradingxtra-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    region: oregon  # or singapore for lower latency to India
+    plan: free      # upgrade to "starter" ($7/mo) to avoid cold starts
+    envVars:
+      - key: DATABASE_URL
+        sync: false  # set manually in Render dashboard
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        value: http://localhost:3000,https://tradingxtra.vercel.app
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: DATA_SOURCE
+        value: live
+      - key: YOUTUBE_CHANNEL_ID
+        value: UCFlpGKkFc9KW6aWbDdx3oVQ
+    healthCheckPath: /api/status
