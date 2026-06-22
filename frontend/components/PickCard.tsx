@@ -1,16 +1,15 @@
 "use client";
 import { TradeDecision } from "@/lib/api";
 import Link from "next/link";
-import { Lightbulb, AlertTriangle, TrendingUp, Shield, BarChart3 } from "lucide-react";
+import { Lightbulb, AlertTriangle, TrendingUp, Shield, BarChart3, ChevronRight } from "lucide-react";
 
-// ── Helpers to extract structured reasons & risks from backend data ──
+// ── Fallback extractors (used when backend trade_analysis is missing) ──
 
-function extractReasons(pick: TradeDecision): string[] {
+function fallbackReasons(pick: TradeDecision): string[] {
   const reasons: string[] = [];
   const agents = pick.agents as Record<string, Record<string, unknown>> | undefined;
   const features = pick.features;
 
-  // 1. Pattern analysis (stock-specific)
   if (agents?.pattern) {
     const patternType = agents.pattern.type as string;
     const patternScore = agents.pattern.score as number;
@@ -20,18 +19,14 @@ function extractReasons(pick: TradeDecision): string[] {
     }
   }
 
-  // 2. Sector strength (stock-specific)
   if (agents?.sector) {
     const sectorScore = agents.sector.score as number;
     const sectorName = agents.sector.sector as string || pick.sector;
     if (sectorScore >= 0.6) {
       reasons.push(`${sectorName} sector showing relative strength`);
-    } else if (sectorScore >= 0.45) {
-      reasons.push(`${sectorName} sector in neutral territory`);
     }
   }
 
-  // 3. Feature-based reasons (stock-specific scores)
   if (features) {
     if (features.VC >= 0.6) reasons.push("Volume confirming the move");
     if (features.MA >= 0.6) reasons.push("Aligned with broader market trend");
@@ -40,20 +35,12 @@ function extractReasons(pick: TradeDecision): string[] {
     if (features.MR <= 0.1) reasons.push("Clean price action — no manipulation signals");
   }
 
-  // 4. Probability-based
-  if (pick.probability >= 0.7) {
-    reasons.push("High conviction trade (P(win) > 70%)");
-  } else if (pick.probability >= 0.6) {
-    reasons.push("Moderate conviction with positive edge");
-  }
+  if (pick.probability >= 0.7) reasons.push("High conviction trade (P(win) > 70%)");
+  else if (pick.probability >= 0.6) reasons.push("Moderate conviction with positive edge");
 
-  // 5. Risk:Reward based
   const rr = pick.reward_risk || pick.risk_reward;
-  if (rr >= 2.0) {
-    reasons.push(`Favorable R:R of ${rr.toFixed(1)}x`);
-  }
+  if (rr >= 2.0) reasons.push(`Favorable R:R of ${rr.toFixed(1)}x`);
 
-  // Fallback: use backend reasoning strings directly
   if (reasons.length === 0 && pick.reasoning && pick.reasoning.length > 0) {
     return pick.reasoning.filter(r => !r.startsWith("⚠")).slice(0, 4);
   }
@@ -61,54 +48,34 @@ function extractReasons(pick: TradeDecision): string[] {
   return reasons.slice(0, 4);
 }
 
-function extractRisks(pick: TradeDecision): string[] {
+function fallbackRisks(pick: TradeDecision): string[] {
   const risks: string[] = [];
   const agents = pick.agents as Record<string, Record<string, unknown>> | undefined;
   const features = pick.features;
 
-  // 1. Manipulation risk (stock-specific)
   if (agents?.manipulation) {
     const mRisk = agents.manipulation.risk as number;
-    if (mRisk >= 0.5) {
-      risks.push("High manipulation risk in price action");
-    } else if (mRisk >= 0.3) {
-      risks.push("Moderate manipulation signals detected");
-    }
+    if (mRisk >= 0.5) risks.push("High manipulation risk in price action");
+    else if (mRisk >= 0.3) risks.push("Moderate manipulation signals detected");
   }
 
-  // 2. Liquidity risk (stock-specific)
   if (agents?.liquidity) {
     const lScore = agents.liquidity.score as number;
-    if (lScore < 0.4) {
-      risks.push("Low liquidity — wider spreads and slippage risk");
-    }
+    if (lScore < 0.4) risks.push("Low liquidity — wider spreads and slippage risk");
   }
 
-  // 3. Feature-based risks
   if (features) {
     if (features.VC < 0.35) risks.push("Volume not confirming — weak participation");
     if (features.SE < 0.4) risks.push("Negative news sentiment");
     if (features.MA < 0.35) risks.push("Fighting the broader market trend");
   }
 
-  // 4. Regime-based
-  if (pick.regime === "volatile") {
-    risks.push("Volatile market regime — wider stop needed");
-  } else if (pick.regime === "sideways") {
-    risks.push("Sideways regime — higher false breakout risk");
-  }
+  if (pick.regime === "volatile") risks.push("Volatile market regime — wider stop needed");
+  else if (pick.regime === "sideways") risks.push("Sideways regime — higher false breakout risk");
 
-  // 5. Conviction-based
-  if (pick.probability < 0.6) {
-    risks.push(`Lower conviction (P(win) = ${(pick.probability * 100).toFixed(0)}%)`);
-  }
+  if (pick.probability < 0.6) risks.push(`Lower conviction (P(win) = ${(pick.probability * 100).toFixed(0)}%)`);
+  if (pick.market_bias === "Bearish") risks.push("Bearish market bias — trading against trend");
 
-  // 6. Market bias headwind
-  if (pick.market_bias === "Bearish") {
-    risks.push("Bearish market bias — trading against trend");
-  }
-
-  // Fallback: use backend reasoning warnings
   if (risks.length === 0 && pick.reasoning) {
     const warnings = pick.reasoning.filter(r => r.startsWith("⚠"));
     return warnings.map(w => w.replace("⚠ ", "")).slice(0, 3);
@@ -130,8 +97,11 @@ export default function PickCard({ pick }: { pick: TradeDecision }) {
   const rr = (pick.reward_risk || pick.risk_reward)?.toFixed(1) || "–";
   const isAccept = pick.decision === "ACCEPT";
 
-  const reasons = extractReasons(pick);
-  const risks = extractRisks(pick);
+  // Use backend trade_analysis if available, otherwise fall back to client-side extraction
+  const analysis = pick.trade_analysis;
+  const hasAnalysis = analysis && analysis.description;
+  const pros = hasAnalysis ? analysis.pros : fallbackReasons(pick);
+  const cons = hasAnalysis ? analysis.cons : fallbackRisks(pick);
 
   return (
     <Link href={`/trade/${pick.symbol}`} className="block h-full">
@@ -195,15 +165,24 @@ export default function PickCard({ pick }: { pick: TradeDecision }) {
           </div>
         </div>
 
-        {/* Logic / Reasons — now using REAL per-stock data */}
+        {/* Trade Description */}
+        {hasAnalysis && (
+          <div className="mb-4 px-3 py-2.5 bg-[var(--bg-secondary)]/30 rounded-lg border border-[var(--border-default)]/50">
+            <p className="text-xs text-[var(--text-secondary)] leading-relaxed line-clamp-3">
+              {analysis.description}
+            </p>
+          </div>
+        )}
+
+        {/* Pros & Cons */}
         <div className="flex-1 space-y-4 mb-4">
-          {reasons.length > 0 && (
+          {pros.length > 0 && (
             <div>
               <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-semibold flex items-center gap-1.5 mb-2">
-                <Lightbulb className="w-3 h-3" /> Why this trade
+                <TrendingUp className="w-3 h-3 text-[var(--accent-green)]" /> Pros
               </span>
               <ul className="space-y-1.5">
-                {reasons.map((r, i) => (
+                {pros.slice(0, 3).map((r, i) => (
                   <li key={i} className="text-xs text-[var(--text-secondary)] flex items-start gap-1.5">
                     <span className="text-[var(--accent-green)] mt-0.5 shrink-0">✔</span> {r}
                   </li>
@@ -212,15 +191,15 @@ export default function PickCard({ pick }: { pick: TradeDecision }) {
             </div>
           )}
           
-          {risks.length > 0 && (
+          {cons.length > 0 && (
             <div>
               <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-semibold flex items-center gap-1.5 mb-2">
-                <AlertTriangle className="w-3 h-3" /> Risks
+                <AlertTriangle className="w-3 h-3 text-[var(--accent-red)]" /> Cons
               </span>
               <ul className="space-y-1.5">
-                {risks.map((r, i) => (
+                {cons.slice(0, 3).map((r, i) => (
                   <li key={i} className="text-xs text-[var(--text-secondary)] flex items-start gap-1.5">
-                    <span className="text-[var(--accent-red)] mt-0.5 shrink-0">•</span> {r}
+                    <span className="text-[var(--accent-red)] mt-0.5 shrink-0">✗</span> {r}
                   </li>
                 ))}
               </ul>
@@ -230,14 +209,17 @@ export default function PickCard({ pick }: { pick: TradeDecision }) {
 
         {/* Footer */}
         <div className="flex justify-between items-center mt-auto pt-4 border-t border-[var(--border-default)]/50 bg-[var(--bg-secondary)]/20 -mx-5 -mb-5 px-5 pb-5 rounded-b-xl">
-          <div>
-            <span className="text-label mr-2">EV:</span>
-            <span className="font-mono text-[var(--accent-green-light)] font-bold">₹{pick.ev.toFixed(1)}</span>
+          <div className="flex gap-4">
+            <div>
+              <span className="text-label mr-1.5">EV:</span>
+              <span className="font-mono text-[var(--accent-green-light)] font-bold">₹{pick.ev.toFixed(1)}</span>
+            </div>
+            <div>
+              <span className="text-label mr-1.5">R:R:</span>
+              <span className="font-mono text-white font-medium">{rr}</span>
+            </div>
           </div>
-          <div>
-            <span className="text-label mr-2">R:R:</span>
-            <span className="font-mono text-white font-medium">{rr}</span>
-          </div>
+          <ChevronRight className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-blue)] group-hover:translate-x-0.5 transition-all" />
         </div>
       </div>
     </Link>

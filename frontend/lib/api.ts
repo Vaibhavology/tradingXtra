@@ -82,6 +82,11 @@ export interface TradeDecision {
   rejection_reason?: string;
   agents?: Record<string, unknown>;
   reasoning?: string[];
+  trade_analysis?: {
+    description: string;
+    pros: string[];
+    cons: string[];
+  };
   market_bias?: string;
   features?: Record<string, number>;
 }

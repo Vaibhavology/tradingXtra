@@ -138,6 +138,244 @@ def compute_risk_reward(closes, highs, lows, sl_mult=1.5, tgt_mult=2.0) -> Dict:
     }
 
 
+def _stock_adjusted_risk_params(
+    regime_params: Dict,
+    pattern_score: float,
+    pattern_confidence: float,
+    sector_score: float,
+    PS: float,
+    MR: float,
+    VC: float,
+) -> Dict:
+    """
+    Create per-stock SL/target multipliers by adjusting regime base values.
+
+    This ensures each stock gets a unique R:R ratio instead of all stocks
+    in the same regime sharing the same ratio (since ATR cancels out).
+
+    Adjustments (additive to regime base multipliers):
+      - Pattern confidence: strong pattern → wider target (+0.30 max)
+      - Sector strength:    strong sector → wider target (+0.15 max)
+      - Momentum (PS):      strong momentum → wider target (+0.20 max)
+      - Manipulation risk:  high MR → wider SL (+0.15 max), tighter target
+      - Volume confirm:     strong volume → wider target (+0.10 max)
+
+    All results clamped to realistic bounds.
+    """
+    base_sl = regime_params["sl_mult"]
+    base_tgt = regime_params["tgt_mult"]
+
+    # ── Target adjustments (how far can price reasonably go?) ─────
+    tgt_adj = 0.0
+
+    # Strong pattern + high confidence → can set wider target
+    if pattern_score >= 0.7 and pattern_confidence >= 0.65:
+        tgt_adj += 0.30 * pattern_score  # up to +0.21
+    elif pattern_score >= 0.5:
+        tgt_adj += 0.15 * pattern_score  # up to +0.10
+    elif pattern_score < 0.35:
+        tgt_adj -= 0.10  # Weak pattern → pull in target
+
+    # Sector tailwind → can ride further
+    if sector_score >= 0.6:
+        tgt_adj += 0.15 * (sector_score - 0.5)  # up to +0.075
+    elif sector_score < 0.4:
+        tgt_adj -= 0.08  # Sector headwind → conservative target
+
+    # Momentum (PS) → strong momentum supports wider targets
+    if PS >= 0.65:
+        tgt_adj += 0.20 * (PS - 0.5)  # up to +0.10
+    elif PS < 0.35:
+        tgt_adj -= 0.10
+
+    # Volume confirmation → more conviction in target
+    if VC >= 0.65:
+        tgt_adj += 0.10 * (VC - 0.5)  # up to +0.05
+
+    # ── SL adjustments (how much room does the trade need?) ──────
+    sl_adj = 0.0
+
+    # High manipulation risk → need wider SL buffer
+    if MR >= 0.5:
+        sl_adj += 0.15 * MR  # up to +0.15 wider SL
+        tgt_adj -= 0.05  # Also slightly reduce target ambition
+    elif MR >= 0.3:
+        sl_adj += 0.08 * MR  # up to +0.08
+
+    # Low confidence pattern → slightly wider SL (more room for noise)
+    if pattern_confidence < 0.5:
+        sl_adj += 0.08
+
+    # ── Apply + clamp ────────────────────────────────────────────
+    final_sl = max(1.0, min(2.0, base_sl + sl_adj))
+    final_tgt = max(1.5, min(3.5, base_tgt + tgt_adj))
+
+    return {
+        "sl_mult": round(final_sl, 3),
+        "tgt_mult": round(final_tgt, 3),
+        "p_win_boost": regime_params.get("p_win_boost", 0.0),
+    }
+
+
+def _build_trade_analysis(
+    symbol: str,
+    meta: Dict,
+    decision: str,
+    features: Dict[str, float],
+    pattern_result: Dict,
+    sector_result: Dict,
+    liquidity_result: Dict,
+    manipulation_result: Dict,
+    regime: str,
+    market_bias: str,
+    SE: float,
+    p_win: float,
+    rr: Dict,
+    ev: float,
+    vix_level: Optional[float],
+) -> Dict:
+    """
+    Build a structured trade analysis with:
+      - description: 2-3 sentence trade thesis unique to this stock
+      - pros: list of bullish factors
+      - cons: list of risk factors
+    """
+    name = meta.get("name", symbol)
+    sector = meta.get("sector", "Unknown")
+    pattern_type = pattern_result.get("pattern", "none")
+    pattern_score = pattern_result.get("pattern_score", 0)
+    pattern_conf = pattern_result.get("confidence", 0)
+    sector_score = sector_result.get("sector_strength", 0.5)
+    liq_score = liquidity_result.get("liquidity_score", 0.5)
+    manip_risk = manipulation_result.get("manipulation_risk", 0)
+
+    # ── Build description ────────────────────────────────────────
+    desc_parts = []
+
+    # Lead with the pattern (what triggered the trade)
+    pattern_label = pattern_type.replace("_", " ").title()
+    if pattern_type not in ("none", "unknown") and pattern_score >= 0.4:
+        strength_word = "strong" if pattern_score >= 0.7 else "moderate" if pattern_score >= 0.5 else "developing"
+        desc_parts.append(
+            f"{name} is showing a {strength_word} {pattern_label} pattern "
+            f"with {pattern_conf:.0%} confidence."
+        )
+    else:
+        desc_parts.append(
+            f"{name} is being evaluated based on its technical and fundamental profile."
+        )
+
+    # Sector context
+    if sector_score >= 0.6:
+        desc_parts.append(
+            f"The {sector} sector is showing relative strength, providing a tailwind."
+        )
+    elif sector_score < 0.4:
+        desc_parts.append(
+            f"The {sector} sector is currently weak, which may limit upside."
+        )
+
+    # Key metric summary
+    desc_parts.append(
+        f"At ₹{rr['entry']}, the trade offers a {rr['reward_risk']:.1f}x risk-reward "
+        f"with a {p_win:.0%} probability of success and expected value of ₹{ev:.1f} per share."
+    )
+
+    description = " ".join(desc_parts)
+
+    # ── Build pros ───────────────────────────────────────────────
+    pros = []
+
+    if pattern_type not in ("none", "unknown") and pattern_score >= 0.5:
+        pros.append(f"{pattern_label} pattern detected (score: {pattern_score:.2f})")
+
+    if sector_score >= 0.6:
+        pros.append(f"{sector} sector outperforming (strength: {sector_score:.2f})")
+
+    if features.get("VC", 0) >= 0.6:
+        pros.append("Volume confirming the price move")
+
+    if features.get("MA", 0) >= 0.6:
+        pros.append("Aligned with broader market direction")
+
+    if SE >= 0.55:
+        pros.append(f"Positive news sentiment (score: {SE:.2f})")
+
+    if liq_score >= 0.7:
+        pros.append("High liquidity — tight spreads, easy execution")
+
+    if manip_risk < 0.1:
+        pros.append("Clean price action — no manipulation detected")
+
+    if market_bias == "Bullish":
+        pros.append("Bullish market bias supports long positions")
+
+    if p_win >= 0.7:
+        pros.append(f"High conviction: {p_win:.0%} win probability")
+    elif p_win >= 0.6:
+        pros.append(f"Moderate conviction with edge: P(win) = {p_win:.0%}")
+
+    if rr["reward_risk"] >= 2.0:
+        pros.append(f"Strong risk-reward ratio of {rr['reward_risk']:.1f}x")
+
+    if ev > 5:
+        pros.append(f"Significant expected value: ₹{ev:.1f} per share")
+
+    if regime == "trending":
+        pros.append("Trending regime favors momentum trades")
+
+    # ── Build cons ───────────────────────────────────────────────
+    cons = []
+
+    if manip_risk >= 0.5:
+        cons.append(f"High manipulation risk ({manip_risk:.2f}) — suspicious price action")
+    elif manip_risk >= 0.3:
+        cons.append(f"Moderate manipulation signals detected (risk: {manip_risk:.2f})")
+
+    if liq_score < 0.4:
+        cons.append(f"Low liquidity (score: {liq_score:.2f}) — slippage and exit risk")
+
+    if features.get("VC", 1) < 0.35:
+        cons.append("Weak volume — move lacks conviction from participants")
+
+    if SE < 0.4:
+        cons.append(f"Negative news sentiment (score: {SE:.2f})")
+    elif SE < 0.5:
+        cons.append("Mixed/neutral news sentiment — no catalyst support")
+
+    if features.get("MA", 1) < 0.35:
+        cons.append("Trading against the broader market trend")
+
+    if sector_score < 0.4:
+        cons.append(f"{sector} sector underperforming — headwind")
+
+    if market_bias == "Bearish":
+        cons.append("Bearish market bias increases downside risk")
+
+    if regime == "volatile":
+        cons.append("Volatile regime — wider stops needed, false signals more likely")
+    elif regime == "sideways":
+        cons.append("Sideways regime — higher risk of false breakouts")
+
+    if vix_level and vix_level > VIX_HIGH_THRESHOLD:
+        cons.append(f"Elevated VIX at {vix_level:.1f} — market uncertainty")
+
+    if p_win < 0.6:
+        cons.append(f"Lower conviction trade (P(win) = {p_win:.0%})")
+
+    if rr["reward_risk"] < 1.5:
+        cons.append(f"Modest risk-reward ratio ({rr['reward_risk']:.1f}x)")
+
+    if pattern_type in ("none", "unknown") or pattern_score < 0.4:
+        cons.append("No strong chart pattern identified")
+
+    return {
+        "description": description,
+        "pros": pros[:6],  # Cap at 6 most relevant
+        "cons": cons[:5],  # Cap at 5
+    }
+
+
 def calculate_ev(p_win, risk, reward) -> float:
     """EV = P(win) × Reward - (1 - P(win)) × Risk"""
     return round(p_win * reward - (1.0 - p_win) * risk, 2)
@@ -298,12 +536,21 @@ def evaluate(symbol: str, allow_stale: bool = False) -> Dict:
 
     logger.info(f"[{symbol}] WScore={wscore}, P(win)={p_win}")
 
-    # ── Step 8: Regime-Adjusted Risk / Reward + EV ───────────────
+    # ── Step 8: Per-Stock Adjusted Risk / Reward + EV ─────────────
     closes = [r["close"] for r in stock_data]
     highs = [r["high"] for r in stock_data]
     lows = [r["low"] for r in stock_data]
 
-    risk_params = REGIME_RISK_PARAMS.get(regime, DEFAULT_RISK_PARAMS)
+    base_risk_params = REGIME_RISK_PARAMS.get(regime, DEFAULT_RISK_PARAMS)
+    risk_params = _stock_adjusted_risk_params(
+        regime_params=base_risk_params,
+        pattern_score=pattern_result["pattern_score"],
+        pattern_confidence=pattern_result["confidence"],
+        sector_score=sector_result["sector_strength"],
+        PS=PS,
+        MR=MR,
+        VC=features["VC"],
+    )
     rr = compute_risk_reward(
         closes, highs, lows,
         sl_mult=risk_params["sl_mult"],
@@ -362,6 +609,25 @@ def evaluate(symbol: str, allow_stale: bool = False) -> Dict:
     # Regime
     reasoning.append(f"Regime: {regime_result['explanation']}")
 
+    # ── Step 11: Build Trade Analysis (description + pros/cons) ──
+    trade_analysis = _build_trade_analysis(
+        symbol=symbol,
+        meta=meta,
+        decision=decision,
+        features=features,
+        pattern_result=pattern_result,
+        sector_result=sector_result,
+        liquidity_result=liquidity_result,
+        manipulation_result=manipulation_result,
+        regime=regime,
+        market_bias=market_bias,
+        SE=SE,
+        p_win=p_win,
+        rr=rr,
+        ev=ev,
+        vix_level=vix_level,
+    )
+
     # ── Response ─────────────────────────────────────────────────
     agents_summary = {
         "pattern": {
@@ -411,5 +677,6 @@ def evaluate(symbol: str, allow_stale: bool = False) -> Dict:
         "regime": regime,
         "market_bias": market_bias,
         "reasoning": reasoning,
+        "trade_analysis": trade_analysis,
         "data_points": len(stock_data),
     })

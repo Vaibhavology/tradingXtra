@@ -45,6 +45,7 @@ class DecisionResponse(BaseModel):
     regime: str = Field(default="unknown", description="Market regime: trending | sideways | volatile")
     market_bias: str = Field(default="Neutral", description="Market bias: Bullish | Bearish | Neutral")
     reasoning: List[str] = Field(default=[], description="Human-readable reasoning for the decision")
+    trade_analysis: Dict = Field(default={}, description="Structured trade analysis: description, pros, cons")
     data_points: int = Field(default=0, description="OHLCV rows used")
 
 
@@ -228,6 +229,7 @@ def _make_lite(scan_data: Dict) -> Dict:
             "rejection_reason": r.get("rejection_reason"),
             "regime": r.get("regime"),
             "market_bias": r.get("market_bias"),
+            "trade_analysis": r.get("trade_analysis"),
             # Omit: agents, features, reasoning (saves ~60% payload)
         })
     return {
